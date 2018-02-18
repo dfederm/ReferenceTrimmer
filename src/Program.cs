@@ -1,22 +1,24 @@
-﻿using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Threading;
-using CommandLine;
-using Microsoft.Build.Evaluation;
-using Microsoft.Build.Framework;
-using Microsoft.Build.Logging;
+﻿// <copyright file="Program.cs" company="David Federman">
+// Copyright (c) David Federman. All rights reserved.
+// </copyright>
 
 namespace ReferenceReducer
 {
     using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.IO;
+    using System.Linq;
+    using System.Reflection;
+    using System.Threading;
+    using Buildalyzer;
+    using CommandLine;
+    using Microsoft.Build.Evaluation;
 
-    public static class Program
+    internal static class Program
     {
-        public static void Main(string[] args)
+        private static void Main(string[] args)
         {
             Parser.Default.ParseArguments<Options>(args)
                 .WithParsed(Run)
@@ -32,79 +34,44 @@ namespace ReferenceReducer
                 {
                     Thread.Sleep(1000);
                 }
+
+                Debugger.Break();
             }
 
-            var msbuildToolsPath = options.MsBuildToolsPath ?? FindOnPath("msbuild.exe");
-            if (string.IsNullOrEmpty(msbuildToolsPath))
+            // MsBuild will end up using the current working directory at time, so set it to the root.
+            if (!string.IsNullOrEmpty(options.Root))
             {
-                Console.WriteLine($"Could not find MsBuild. Ensure it is on the PATH or provide the {nameof(options.MsBuildToolsPath)} option.");
-                return;
+                Directory.SetCurrentDirectory(options.Root);
             }
 
-            /* A couple bugs make this approach impossible:
-             * https://github.com/Microsoft/msbuild/issues/3001
-             * https://github.com/Microsoft/msbuild/issues/3002
-             * 
-             * Try using an assembly resolver to resolve directly to the msbuild dlls in the msbuildToolsPath
-             */
-
-            // TODO: May want to base off of: https://daveaglick.com/posts/running-a-design-time-build-with-msbuild-apis
-            var projectCollection = ProjectCollection.GlobalProjectCollection;
-            var msbuildToolsVersion = projectCollection.DefaultToolsVersion;
-            projectCollection.RemoveAllToolsets();
-            projectCollection.AddToolset(new Toolset(msbuildToolsVersion, msbuildToolsPath, projectCollection, msbuildToolsPath));
-            projectCollection.DefaultToolsVersion = msbuildToolsVersion;
-
-            var logger = new FileLogger();
-            logger.Parameters = "LOGFILE=foo.log";
-            logger.Verbosity = LoggerVerbosity.Diagnostic;
-            projectCollection.RegisterLogger(logger);
-
-            // Required for design-time builds.
-            projectCollection.SetGlobalProperty("DesignTimeBuild", "true");
-            projectCollection.SetGlobalProperty("BuildProjectReferences", "false");
-            projectCollection.SetGlobalProperty("SkipCompilerExecution", "true");
-            projectCollection.SetGlobalProperty("ProvideCommandLineArgs", "true");
-
-            var root = options.Root ?? Directory.GetCurrentDirectory();
-            var projectFiles = Directory.EnumerateFiles(root, "*.*proj", SearchOption.AllDirectories);
+            var projectFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*proj", SearchOption.AllDirectories);
+            var manager = new AnalyzerManager();
             var results = new ConcurrentDictionary<string, IEnumerable<string>>(StringComparer.OrdinalIgnoreCase);
 
-            var projectMap = new Dictionary<string, Project>();
+            var projects = new Dictionary<string, Project>();
             foreach (var projectFile in projectFiles)
             {
-                var project = projectCollection.LoadProject(projectFile);
-                projectMap.Add(projectFile, project);
-            }
+                var analyzer = manager.GetProject(projectFile);
 
-            //Parallel.ForEach(projectFiles, projectFile =>
-            foreach (var pair in projectMap)
-            {
-                var projectFile = pair.Key;
-                var project = pair.Value;
-                //var project = projectCollection.LoadProject(projectFile);
+                if (options.MsBuildBinlog)
+                {
+                    // Put a binlog in the directory of each project
+                    analyzer.WithBinaryLog();
+                }
+
+                var project = analyzer.Project;
 
                 var assemblyFile = project.GetItems("IntermediateAssembly").FirstOrDefault()?.EvaluatedInclude;
                 if (assemblyFile == null)
                 {
                     // Not all projects may produce an assembly
                     continue;
-                    //return;
                 }
 
                 var assemblyFileFullPath = Path.Combine(Path.GetDirectoryName(projectFile), assemblyFile);
                 var assemblyReferences = GetAssemblyReferences(assemblyFileFullPath);
 
-                var projectInstance = project.CreateProjectInstance();
-                if (!projectInstance.Build("CompileDesignTime", projectCollection.Loggers))
-                {
-                    Console.WriteLine($"Failed to get references for project {Path.GetFileName(projectFile)}");
-                    //continue;
-                    return;
-                }
-
-                var projectReferences = new HashSet<string>(projectInstance.GetItems("ReferencePathWithRefAssemblies")
-                    .Select(reference => reference.EvaluatedInclude), StringComparer.OrdinalIgnoreCase);
+                var projectReferences = new HashSet<string>(analyzer.GetReferences(), StringComparer.OrdinalIgnoreCase);
 
                 var removeableReferences = projectReferences.Except(assemblyReferences).ToList();
                 if (removeableReferences.Count > 0)
@@ -113,16 +80,18 @@ namespace ReferenceReducer
                 }
 
                 // Debug output
-                foreach (string assemblyReference in assemblyReferences)
+                foreach (var assemblyReference in assemblyReferences)
                 {
                     Console.WriteLine($"Assembly {Path.GetFileName(assemblyFileFullPath)} referenced {assemblyReference}");
                 }
 
-                foreach (string projectReference in projectReferences)
+                foreach (var projectReference in projectReferences)
                 {
                     Console.WriteLine($"Project {Path.GetFileName(projectFile)} referenced {projectReference}");
                 }
-            }//);
+            }
+
+            Console.WriteLine();
 
             foreach (var result in results)
             {
@@ -147,9 +116,11 @@ namespace ReferenceReducer
             try
             {
                 var assembly = Assembly.LoadFile(assemblyFile);
-                return new HashSet<string>(assembly
-                    .GetReferencedAssemblies()
-                    .Select(name => name.Name), StringComparer.OrdinalIgnoreCase);
+                return new HashSet<string>(
+                    assembly
+                        .GetReferencedAssemblies()
+                        .Select(name => name.Name),
+                    StringComparer.OrdinalIgnoreCase);
             }
             catch (Exception e)
             {
@@ -158,16 +129,6 @@ namespace ReferenceReducer
                 Console.WriteLine();
                 return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             }
-        }
-
-        private static string FindOnPath(string file)
-        {
-            return (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
-                .Split(new[] { Path.PathSeparator }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(Directory.Exists)
-                .Select(i => Path.Combine(i, file))
-                .Where(File.Exists)
-                .FirstOrDefault();
         }
 
         private static void WriteErrors(IEnumerable<Error> errors)

@@ -3,7 +3,14 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27413.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReferenceReducer", "src\ReferenceReducer.csproj", "{D0410117-6DF9-4E70-91BD-312FEDD51299}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceReducer", "src\ReferenceReducer.csproj", "{D0410117-6DF9-4E70-91BD-312FEDD51299}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{174263EF-E63B-4225-9716-6AE013F2A1D4}"
+	ProjectSection(SolutionItems) = preProject
+		build\CodeAnalysis.ruleset = build\CodeAnalysis.ruleset
+		Directory.Build.props = Directory.Build.props
+		build\stylecop.json = build\stylecop.json
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RuleSet Name="CodeAnalysis" Description=" " ToolsVersion="14.0">
+  <Rules AnalyzerId="Microsoft.CodeAnalysis.CSharp.Features" RuleNamespace="Microsoft.CodeAnalysis.CSharp.Features">
+    <!-- Conflicts with SA1101. We prefer requiring "this" qualification. -->
+    <Rule Id="IDE0003" Action="None" />
+  </Rules>
+
+  <!-- Don't worry about documentation -->
+  <Rules AnalyzerId="StyleCop.Analyzers" RuleNamespace="StyleCop.Analyzers">
+    <!-- XmlCommentAnalysisDisabled -->
+    <Rule Id="SA0001" Action="None" />
+  </Rules>
+
+</RuleSet>
