@@ -5,16 +5,13 @@
 namespace ReferenceReducer
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
-    using System.Reflection;
     using System.Threading;
     using Buildalyzer;
     using CommandLine;
-    using Microsoft.Build.Evaluation;
 
     internal static class Program
     {
@@ -29,7 +26,7 @@ namespace ReferenceReducer
         {
             if (options.Debug)
             {
-                Console.WriteLine("Waiting for a debugger to attach");
+                Console.WriteLine($"Waiting for a debugger to attach (PID {Process.GetCurrentProcess().Id})");
                 while (!Debugger.IsAttached)
                 {
                     Thread.Sleep(1000);
@@ -46,88 +43,36 @@ namespace ReferenceReducer
 
             var projectFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*proj", SearchOption.AllDirectories);
             var manager = new AnalyzerManager();
-            var results = new ConcurrentDictionary<string, IEnumerable<string>>(StringComparer.OrdinalIgnoreCase);
 
             var projects = new Dictionary<string, Project>();
             foreach (var projectFile in projectFiles)
             {
-                var analyzer = manager.GetProject(projectFile);
-
-                if (options.MsBuildBinlog)
+                var project = Project.GetProject(manager, options, projectFile);
+                if (project == null)
                 {
-                    // Put a binlog in the directory of each project
-                    analyzer.WithBinaryLog();
-                }
-
-                var project = analyzer.Project;
-
-                var assemblyFile = project.GetItems("IntermediateAssembly").FirstOrDefault()?.EvaluatedInclude;
-                if (assemblyFile == null)
-                {
-                    // Not all projects may produce an assembly
                     continue;
                 }
 
-                var assemblyFileFullPath = Path.Combine(Path.GetDirectoryName(projectFile), assemblyFile);
-                var assemblyReferences = GetAssemblyReferences(assemblyFileFullPath);
+                var assemblyReferences = project.AssemblyReferences.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                var projectReferences = new HashSet<string>(analyzer.GetReferences(), StringComparer.OrdinalIgnoreCase);
-
-                var removeableReferences = projectReferences.Except(assemblyReferences).ToList();
-                if (removeableReferences.Count > 0)
+                foreach (var reference in project.References)
                 {
-                    results.TryAdd(projectFile, removeableReferences);
+                    if (!assemblyReferences.Contains(reference))
+                    {
+                        Console.WriteLine($"Reference {reference} can be removed from {projectFile}");
+                    }
                 }
 
-                // Debug output
-                foreach (var assemblyReference in assemblyReferences)
+                foreach (var projectReference in project.ProjectReferences)
                 {
-                    Console.WriteLine($"Assembly {Path.GetFileName(assemblyFileFullPath)} referenced {assemblyReference}");
+                    var projectReferenceAssemblyName = projectReference.AssemblyName;
+                    if (!assemblyReferences.Contains(projectReferenceAssemblyName))
+                    {
+                        Console.WriteLine($"ProjectReference {projectReference} can be removed from {projectFile}");
+                    }
                 }
 
-                foreach (var projectReference in projectReferences)
-                {
-                    Console.WriteLine($"Project {Path.GetFileName(projectFile)} referenced {projectReference}");
-                }
-            }
-
-            Console.WriteLine();
-
-            foreach (var result in results)
-            {
-                Console.WriteLine("===" + result.Key + "===");
-                foreach (var unnessesaryReference in result.Value)
-                {
-                    Console.WriteLine(unnessesaryReference);
-                }
-
-                Console.WriteLine();
-            }
-        }
-
-        private static HashSet<string> GetAssemblyReferences(string assemblyFile)
-        {
-            if (!File.Exists(assemblyFile))
-            {
-                Console.WriteLine($"Assembly did not exist. Ensure you've previously built it. Assembly: {assemblyFile}");
-                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            try
-            {
-                var assembly = Assembly.LoadFile(assemblyFile);
-                return new HashSet<string>(
-                    assembly
-                        .GetReferencedAssemblies()
-                        .Select(name => name.Name),
-                    StringComparer.OrdinalIgnoreCase);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(assemblyFile);
-                Console.WriteLine(e);
-                Console.WriteLine();
-                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                // TODO: PackageReferences
             }
         }
 

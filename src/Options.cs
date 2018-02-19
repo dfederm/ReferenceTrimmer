@@ -15,8 +15,5 @@ namespace ReferenceReducer
 
         [Option('d', "debug", Required = false, Hidden = true)]
         public bool Debug { get; set; }
-
-        [Option('b', "binlog", Required = false, Hidden = true)]
-        public bool MsBuildBinlog { get; set; }
     }
 }
