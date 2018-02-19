@@ -22,13 +22,15 @@ namespace ReferenceReducer
 
         public string AssemblyName { get; private set; }
 
-        public IReadOnlyList<string> AssemblyReferences { get; private set; }
+        public HashSet<string> AssemblyReferences { get; private set; }
 
-        public IReadOnlyList<string> References { get; private set; }
+        public List<string> References { get; private set; }
 
-        public IReadOnlyList<Project> ProjectReferences { get; private set; }
+        public List<Project> ProjectReferences { get; private set; }
 
-        public IReadOnlyList<string> PackageReferences { get; private set; }
+        public List<string> PackageReferences { get; private set; }
+
+        public Dictionary<string, List<string>> PackageAssemblies { get; private set; }
 
         public static Project GetProject(AnalyzerManager manager, Options options, string projectFile)
         {
@@ -73,7 +75,7 @@ namespace ReferenceReducer
             var assemblyReferences = assembly
                 .GetReferencedAssemblies()
                 .Select(name => name.Name)
-                .ToList();
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var references = msBuildProject
                 .GetItems("Reference")
@@ -95,16 +97,80 @@ namespace ReferenceReducer
             // Certain project types may require references simply to copy them to the output folder to satisfy transitive dependencies.
             if (NeedsTransitiveAssemblyReferences(msBuildProject))
             {
-                projectReferences.ForEach(projectReference => assemblyReferences.AddRange(projectReference.AssemblyReferences));
+                projectReferences.ForEach(projectReference => assemblyReferences.UnionWith(projectReference.AssemblyReferences));
+            }
+
+            // Only bother doing a design-time build if there is a reason to
+            var packageAssemblies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            if (packageReferences.Count > 0)
+            {
+                if (options.MsBuildBinlog)
+                {
+                    analyzer.WithBinaryLog();
+                }
+
+                var msBuildCompiledProject = analyzer.Compile();
+
+                var packageParents = msBuildCompiledProject.GetItems("_ActiveTFMPackageDependencies")
+                    .Where(package => !string.IsNullOrEmpty(package.GetMetadataValue("ParentPackage")))
+                    .GroupBy(
+                        package =>
+                        {
+                            var packageIdentity = package.EvaluatedInclude;
+                            return packageIdentity.Substring(0, packageIdentity.IndexOf('/'));
+                        },
+                        package =>
+                        {
+                            var parentPackageIdentity = package.GetMetadataValue("ParentPackage");
+                            return parentPackageIdentity.Substring(0, parentPackageIdentity.IndexOf('/'));
+                        },
+                        StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.ToList());
+
+                var resolvedPackageReferences = msBuildCompiledProject.GetItems("Reference")
+                    .Where(reference => reference.GetMetadataValue("NuGetSourceType").Equals("Package", StringComparison.OrdinalIgnoreCase));
+                foreach (var resolvedPackageReference in resolvedPackageReferences)
+                {
+                    var assemblyName = Path.GetFileNameWithoutExtension(resolvedPackageReference.EvaluatedInclude);
+
+                    // Add the assembly to the containing package and all parent packages.
+                    var seenParents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var queue = new Queue<string>();
+                    queue.Enqueue(resolvedPackageReference.GetMetadataValue("NuGetPackageId"));
+                    while (queue.Count > 0)
+                    {
+                        var packageId = queue.Dequeue();
+
+                        if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                        {
+                            assemblies = new List<string>();
+                            packageAssemblies.Add(packageId, assemblies);
+                        }
+
+                        assemblies.Add(assemblyName);
+
+                        if (packageParents.TryGetValue(packageId, out var parents))
+                        {
+                            foreach (var parent in parents)
+                            {
+                                if (seenParents.Add(parent))
+                                {
+                                    queue.Enqueue(parent);
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             return new Project
             {
                 AssemblyName = assembly.GetName().Name,
-                AssemblyReferences = assemblyReferences.AsReadOnly(),
-                References = references.AsReadOnly(),
-                ProjectReferences = projectReferences.AsReadOnly(),
-                PackageReferences = packageReferences.AsReadOnly(),
+                AssemblyReferences = assemblyReferences,
+                References = references,
+                ProjectReferences = projectReferences,
+                PackageReferences = packageReferences,
+                PackageAssemblies = packageAssemblies,
             };
         }
 

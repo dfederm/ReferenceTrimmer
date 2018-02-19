@@ -53,11 +53,9 @@ namespace ReferenceReducer
                     continue;
                 }
 
-                var assemblyReferences = project.AssemblyReferences.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
                 foreach (var reference in project.References)
                 {
-                    if (!assemblyReferences.Contains(reference))
+                    if (!project.AssemblyReferences.Contains(reference))
                     {
                         Console.WriteLine($"Reference {reference} can be removed from {projectFile}");
                     }
@@ -66,13 +64,25 @@ namespace ReferenceReducer
                 foreach (var projectReference in project.ProjectReferences)
                 {
                     var projectReferenceAssemblyName = projectReference.AssemblyName;
-                    if (!assemblyReferences.Contains(projectReferenceAssemblyName))
+                    if (!project.AssemblyReferences.Contains(projectReferenceAssemblyName))
                     {
                         Console.WriteLine($"ProjectReference {projectReference} can be removed from {projectFile}");
                     }
                 }
 
-                // TODO: PackageReferences
+                foreach (var packageReference in project.PackageReferences)
+                {
+                    if (!project.PackageAssemblies.TryGetValue(packageReference, out var packageAssemblies))
+                    {
+                        // These are likely Analyzers, tools, etc.
+                        continue;
+                    }
+
+                    if (!packageAssemblies.Any(packageAssembly => project.AssemblyReferences.Contains(packageAssembly)))
+                    {
+                        Console.WriteLine($"PackageReference {packageReference} can be removed from {projectFile}");
+                    }
+                }
             }
         }
 
