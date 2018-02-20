@@ -2,7 +2,7 @@
 // Copyright (c) David Federman. All rights reserved.
 // </copyright>
 
-namespace ReferenceReducer
+namespace ReferenceTrimmer
 {
     using System;
     using System.Collections.Generic;
@@ -14,11 +14,13 @@ namespace ReferenceReducer
 
     internal sealed class Project
     {
-        private static Dictionary<string, Project> projects = new Dictionary<string, Project>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, Project> Projects = new Dictionary<string, Project>(StringComparer.OrdinalIgnoreCase);
 
         private Project()
         {
         }
+
+        public string Name { get; private set; }
 
         public string AssemblyName { get; private set; }
 
@@ -34,10 +36,10 @@ namespace ReferenceReducer
 
         public static Project GetProject(AnalyzerManager manager, Options options, string projectFile)
         {
-            if (!projects.TryGetValue(projectFile, out var project))
+            if (!Projects.TryGetValue(projectFile, out var project))
             {
                 project = Create(manager, options, projectFile);
-                projects.Add(projectFile, project);
+                Projects.Add(projectFile, project);
             }
 
             return project;
@@ -45,133 +47,148 @@ namespace ReferenceReducer
 
         private static Project Create(AnalyzerManager manager, Options options, string projectFile)
         {
-            var analyzer = manager.GetProject(projectFile);
-            var msBuildProject = analyzer.Load();
-
-            var assemblyFile = msBuildProject.GetItems("IntermediateAssembly").FirstOrDefault()?.EvaluatedInclude;
-            if (assemblyFile == null)
+            var oldCurrentDirectory = Directory.GetCurrentDirectory();
+            Directory.SetCurrentDirectory(Path.GetDirectoryName(projectFile));
+            try
             {
-                // Not all projects may produce an assembly
-                return null;
-            }
+                var analyzer = manager.GetProject(projectFile);
+                var msBuildProject = analyzer.Load();
 
-            var projectDirectory = Path.GetDirectoryName(projectFile);
-            var assemblyFileFullPath = Path.GetFullPath(Path.Combine(projectDirectory, assemblyFile));
-            if (!File.Exists(assemblyFileFullPath))
-            {
-                // Can't analyze this project since it hasn't been built
-                Console.WriteLine($"Assembly did not exist. Ensure you've previously built it. Assembly: {assemblyFileFullPath}");
-                return null;
-            }
-
-            var assembly = LoadAssembly(assemblyFileFullPath);
-            if (assembly == null)
-            {
-                // Can't analyze this project since we couldn't load its assembly
-                Console.WriteLine($"Assembly could not be loaded. Assembly: {assemblyFileFullPath}");
-                return null;
-            }
-
-            var assemblyReferences = assembly
-                .GetReferencedAssemblies()
-                .Select(name => name.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            var references = msBuildProject
-                .GetItems("Reference")
-                .Select(reference => reference.EvaluatedInclude)
-                .ToList();
-
-            var projectReferences = msBuildProject
-                .GetItems("ProjectReference")
-                .Select(reference => reference.EvaluatedInclude)
-                .Select(projectReference => GetProject(manager, options, Path.GetFullPath(Path.Combine(projectDirectory, projectReference))))
-                .Where(dependency => dependency != null)
-                .ToList();
-
-            var packageReferences = msBuildProject
-                .GetItems("PackageReference")
-                .Select(reference => reference.EvaluatedInclude)
-                .ToList();
-
-            // Certain project types may require references simply to copy them to the output folder to satisfy transitive dependencies.
-            if (NeedsTransitiveAssemblyReferences(msBuildProject))
-            {
-                projectReferences.ForEach(projectReference => assemblyReferences.UnionWith(projectReference.AssemblyReferences));
-            }
-
-            // Only bother doing a design-time build if there is a reason to
-            var packageAssemblies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-            if (packageReferences.Count > 0)
-            {
-                if (options.MsBuildBinlog)
+                var assemblyFile = msBuildProject.GetItems("IntermediateAssembly").FirstOrDefault()?.EvaluatedInclude;
+                if (string.IsNullOrEmpty(assemblyFile))
                 {
-                    analyzer.WithBinaryLog();
+                    // Not all projects may produce an assembly
+                    return null;
                 }
 
-                var msBuildCompiledProject = analyzer.Compile();
-
-                var packageParents = msBuildCompiledProject.GetItems("_ActiveTFMPackageDependencies")
-                    .Where(package => !string.IsNullOrEmpty(package.GetMetadataValue("ParentPackage")))
-                    .GroupBy(
-                        package =>
-                        {
-                            var packageIdentity = package.EvaluatedInclude;
-                            return packageIdentity.Substring(0, packageIdentity.IndexOf('/'));
-                        },
-                        package =>
-                        {
-                            var parentPackageIdentity = package.GetMetadataValue("ParentPackage");
-                            return parentPackageIdentity.Substring(0, parentPackageIdentity.IndexOf('/'));
-                        },
-                        StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(group => group.Key, group => group.ToList());
-
-                var resolvedPackageReferences = msBuildCompiledProject.GetItems("Reference")
-                    .Where(reference => reference.GetMetadataValue("NuGetSourceType").Equals("Package", StringComparison.OrdinalIgnoreCase));
-                foreach (var resolvedPackageReference in resolvedPackageReferences)
+                var projectDirectory = Path.GetDirectoryName(projectFile);
+                var assemblyFileFullPath = Path.GetFullPath(Path.Combine(projectDirectory, assemblyFile));
+                if (!File.Exists(assemblyFileFullPath))
                 {
-                    var assemblyName = Path.GetFileNameWithoutExtension(resolvedPackageReference.EvaluatedInclude);
+                    // Can't analyze this project since it hasn't been built
+                    Console.WriteLine($"Assembly did not exist. Ensure you've previously built it. Assembly: {assemblyFileFullPath}");
+                    return null;
+                }
 
-                    // Add the assembly to the containing package and all parent packages.
-                    var seenParents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    var queue = new Queue<string>();
-                    queue.Enqueue(resolvedPackageReference.GetMetadataValue("NuGetPackageId"));
-                    while (queue.Count > 0)
+                var assembly = LoadAssembly(assemblyFileFullPath);
+                if (assembly == null)
+                {
+                    // Can't analyze this project since we couldn't load its assembly
+                    Console.WriteLine($"Assembly could not be loaded. Assembly: {assemblyFileFullPath}");
+                    return null;
+                }
+
+                var assemblyReferences = assembly
+                    .GetReferencedAssemblies()
+                    .Select(name => name.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var references = msBuildProject
+                    .GetItems("Reference")
+                    .Select(reference => reference.EvaluatedInclude)
+                    .ToList();
+
+                var projectReferences = msBuildProject
+                    .GetItems("ProjectReference")
+                    .Select(reference => reference.EvaluatedInclude)
+                    .Select(projectReference => GetProject(manager, options, Path.GetFullPath(Path.Combine(projectDirectory, projectReference))))
+                    .Where(dependency => dependency != null)
+                    .ToList();
+
+                var packageReferences = msBuildProject
+                    .GetItems("PackageReference")
+                    .Select(reference => reference.EvaluatedInclude)
+                    .ToList();
+
+                // Certain project types may require references simply to copy them to the output folder to satisfy transitive dependencies.
+                if (NeedsTransitiveAssemblyReferences(msBuildProject))
+                {
+                    projectReferences.ForEach(projectReference => assemblyReferences.UnionWith(projectReference.AssemblyReferences));
+                }
+
+                // Only bother doing a design-time build if there is a reason to
+                var packageAssemblies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                if (packageReferences.Count > 0)
+                {
+                    if (options.MsBuildBinlog)
                     {
-                        var packageId = queue.Dequeue();
+                        analyzer.WithBinaryLog();
+                    }
 
-                        if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
-                        {
-                            assemblies = new List<string>();
-                            packageAssemblies.Add(packageId, assemblies);
-                        }
+                    var msBuildCompiledProject = analyzer.Compile();
 
-                        assemblies.Add(assemblyName);
-
-                        if (packageParents.TryGetValue(packageId, out var parents))
-                        {
-                            foreach (var parent in parents)
+                    var packageParents = msBuildCompiledProject.GetItems("_ActiveTFMPackageDependencies")
+                        .Where(package => !string.IsNullOrEmpty(package.GetMetadataValue("ParentPackage")))
+                        .GroupBy(
+                            package =>
                             {
-                                if (seenParents.Add(parent))
+                                var packageIdentity = package.EvaluatedInclude;
+                                return packageIdentity.Substring(0, packageIdentity.IndexOf('/'));
+                            },
+                            package =>
+                            {
+                                var parentPackageIdentity = package.GetMetadataValue("ParentPackage");
+                                return parentPackageIdentity.Substring(0, parentPackageIdentity.IndexOf('/'));
+                            },
+                            StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(group => group.Key, group => group.ToList());
+
+                    var resolvedPackageReferences = msBuildCompiledProject.GetItems("Reference")
+                        .Where(reference => reference.GetMetadataValue("NuGetSourceType").Equals("Package", StringComparison.OrdinalIgnoreCase));
+                    foreach (var resolvedPackageReference in resolvedPackageReferences)
+                    {
+                        var assemblyName = Path.GetFileNameWithoutExtension(resolvedPackageReference.EvaluatedInclude);
+
+                        // Add the assembly to the containing package and all parent packages.
+                        var seenParents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        var queue = new Queue<string>();
+                        queue.Enqueue(resolvedPackageReference.GetMetadataValue("NuGetPackageId"));
+                        while (queue.Count > 0)
+                        {
+                            var packageId = queue.Dequeue();
+
+                            if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                            {
+                                assemblies = new List<string>();
+                                packageAssemblies.Add(packageId, assemblies);
+                            }
+
+                            assemblies.Add(assemblyName);
+
+                            if (packageParents.TryGetValue(packageId, out var parents))
+                            {
+                                foreach (var parent in parents)
                                 {
-                                    queue.Enqueue(parent);
+                                    if (seenParents.Add(parent))
+                                    {
+                                        queue.Enqueue(parent);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            return new Project
+                return new Project
+                {
+                    Name = projectFile,
+                    AssemblyName = assembly.GetName().Name,
+                    AssemblyReferences = assemblyReferences,
+                    References = references,
+                    ProjectReferences = projectReferences,
+                    PackageReferences = packageReferences,
+                    PackageAssemblies = packageAssemblies,
+                };
+            }
+            catch (Exception e)
             {
-                AssemblyName = assembly.GetName().Name,
-                AssemblyReferences = assemblyReferences,
-                References = references,
-                ProjectReferences = projectReferences,
-                PackageReferences = packageReferences,
-                PackageAssemblies = packageAssemblies,
-            };
+                Console.WriteLine($"Exception while trying to load: {projectFile}. Exception: {e}");
+                return null;
+            }
+            finally
+            {
+                Directory.SetCurrentDirectory(oldCurrentDirectory);
+            }
         }
 
         private static Assembly LoadAssembly(string assemblyFile)

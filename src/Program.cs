@@ -2,7 +2,7 @@
 // Copyright (c) David Federman. All rights reserved.
 // </copyright>
 
-namespace ReferenceReducer
+namespace ReferenceTrimmer
 {
     using System;
     using System.Collections.Generic;
@@ -44,7 +44,6 @@ namespace ReferenceReducer
             var projectFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*proj", SearchOption.AllDirectories);
             var manager = new AnalyzerManager();
 
-            var projects = new Dictionary<string, Project>();
             foreach (var projectFile in projectFiles)
             {
                 var project = Project.GetProject(manager, options, projectFile);
@@ -66,7 +65,7 @@ namespace ReferenceReducer
                     var projectReferenceAssemblyName = projectReference.AssemblyName;
                     if (!project.AssemblyReferences.Contains(projectReferenceAssemblyName))
                     {
-                        Console.WriteLine($"ProjectReference {projectReference} can be removed from {projectFile}");
+                        Console.WriteLine($"ProjectReference {projectReference.Name} can be removed from {projectFile}");
                     }
                 }
 

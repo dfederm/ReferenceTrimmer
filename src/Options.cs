@@ -2,7 +2,7 @@
 // Copyright (c) David Federman. All rights reserved.
 // </copyright>
 
-namespace ReferenceReducer
+namespace ReferenceTrimmer
 {
     using System.Diagnostics.CodeAnalysis;
     using CommandLine;
