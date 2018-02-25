@@ -1,11 +1,15 @@
 Param(
   [string]$configuration = 'Release',
   [string]$runtime = 'win10-x64',
-  [string]$output = (Join-Path (Get-Location) 'Publish')
+  [string[]]$frameworks = @("netcoreapp2.0","net461"),
+  [string]$output = (Join-Path (Get-Location) 'Publish'),
+  [string]$version = '1.0.1'
 )
 
 Remove-Item -Path $output -Recurse -Force -ErrorAction SilentlyContinue
 
-dotnet publish src\ReferenceTrimmer.csproj -c $configuration -r $runtime -o $output
-
-Compress-Archive -Path $output\* -DestinationPath $output\ReferenceTrimmer.zip
+foreach ($framework in $frameworks) {
+  Write-Host "Publishing for $framework"
+  dotnet publish src\ReferenceTrimmer.csproj -c $configuration -r $runtime -f $framework -o $output\$framework
+  Compress-Archive -Path $output\$framework\* -DestinationPath $output\ReferenceTrimmer-$version-$framework.zip
+}
