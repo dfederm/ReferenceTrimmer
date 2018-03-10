@@ -42,7 +42,7 @@ namespace ReferenceTrimmer
             }
 
             var projectFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*proj", SearchOption.AllDirectories);
-            var manager = new AnalyzerManager();
+            var manager = new AnalyzerManager(new AnalyzerManagerOptions { CleanBeforeCompile = false });
 
             foreach (var projectFile in projectFiles)
             {
