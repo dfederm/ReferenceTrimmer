@@ -10,6 +10,7 @@ namespace ReferenceTrimmer
     using System.Linq;
     using System.Reflection;
     using Buildalyzer;
+    using Buildalyzer.Environment;
     using MsBuildProject = Microsoft.Build.Evaluation.Project;
 
     internal sealed class Project
@@ -34,24 +35,34 @@ namespace ReferenceTrimmer
 
         public Dictionary<string, List<string>> PackageAssemblies { get; private set; }
 
-        public static Project GetProject(AnalyzerManager manager, Options options, string projectFile)
+        public static Project GetProject(
+            AnalyzerManager manager,
+            BuildEnvironment buildEnvironment,
+            string projectFile,
+            bool useBinlog)
         {
             if (!Projects.TryGetValue(projectFile, out var project))
             {
-                project = Create(manager, options, projectFile);
+                project = Create(manager, buildEnvironment, projectFile, useBinlog);
                 Projects.Add(projectFile, project);
             }
 
             return project;
         }
 
-        private static Project Create(AnalyzerManager manager, Options options, string projectFile)
+        private static Project Create(
+            AnalyzerManager manager,
+            BuildEnvironment buildEnvironment,
+            string projectFile,
+            bool useBinlog)
         {
             var oldCurrentDirectory = Directory.GetCurrentDirectory();
             Directory.SetCurrentDirectory(Path.GetDirectoryName(projectFile));
             try
             {
-                var analyzer = manager.GetProject(projectFile);
+                var analyzer = buildEnvironment == null
+                    ? manager.GetProject(projectFile)
+                    : manager.GetProject(projectFile, buildEnvironment);
                 var msBuildProject = analyzer.Load();
 
                 var assemblyFile = msBuildProject.GetItems("IntermediateAssembly").FirstOrDefault()?.EvaluatedInclude;
@@ -91,7 +102,7 @@ namespace ReferenceTrimmer
                 var projectReferences = msBuildProject
                     .GetItems("ProjectReference")
                     .Select(reference => reference.EvaluatedInclude)
-                    .Select(projectReference => GetProject(manager, options, Path.GetFullPath(Path.Combine(projectDirectory, projectReference))))
+                    .Select(projectReference => GetProject(manager, buildEnvironment, Path.GetFullPath(Path.Combine(projectDirectory, projectReference)), useBinlog))
                     .Where(dependency => dependency != null)
                     .ToList();
 
@@ -110,7 +121,7 @@ namespace ReferenceTrimmer
                 var packageAssemblies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
                 if (packageReferences.Count > 0)
                 {
-                    if (options.MsBuildBinlog)
+                    if (useBinlog)
                     {
                         analyzer.WithBinaryLog();
                     }
@@ -214,7 +225,6 @@ namespace ReferenceTrimmer
                 return true;
             }
 
-            // TODO: Unit tests
             return false;
         }
     }

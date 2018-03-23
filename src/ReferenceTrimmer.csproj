@@ -4,7 +4,8 @@
     <OutputType>Exe</OutputType>
     <TargetFrameworks>netcoreapp2.0;net461</TargetFrameworks>
     <Authors>David Federman</Authors>
-    <AssemblyVersion>1.0.1</AssemblyVersion>
+    <!-- Overriden in the publish script -->
+    <AssemblyVersion>0.0.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>

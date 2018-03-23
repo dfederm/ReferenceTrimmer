@@ -11,6 +11,7 @@ namespace ReferenceTrimmer
     using System.Linq;
     using System.Threading;
     using Buildalyzer;
+    using Buildalyzer.Environment;
     using CommandLine;
 
     internal static class Program
@@ -44,9 +45,38 @@ namespace ReferenceTrimmer
             var projectFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*proj", SearchOption.AllDirectories);
             var manager = new AnalyzerManager(new AnalyzerManagerOptions { CleanBeforeCompile = false });
 
+            BuildEnvironment buildEnvironment = null;
+            if (!string.IsNullOrEmpty(options.ToolsPath)
+                || !string.IsNullOrEmpty(options.ExtensionsPath)
+                || !string.IsNullOrEmpty(options.SdksPath)
+                || !string.IsNullOrEmpty(options.RoslynTargetsPath))
+            {
+                if (string.IsNullOrEmpty(options.ToolsPath))
+                {
+                    Console.WriteLine("ToolsPath must be provided when ExtensionsPath, SdksPath, or RoslynTargetsPath are provided");
+                    return;
+                }
+
+                var toolsPath = options.ToolsPath;
+                var extensionsPath = !string.IsNullOrEmpty(options.ExtensionsPath)
+                    ? options.ExtensionsPath
+                    : Path.GetFullPath(Path.Combine(toolsPath, @"..\..\"));
+                buildEnvironment = new BuildEnvironment
+                {
+                    ToolsPath = toolsPath,
+                    ExtensionsPath = extensionsPath,
+                    SDKsPath = !string.IsNullOrEmpty(options.SdksPath)
+                        ? options.SdksPath
+                        : Path.Combine(extensionsPath, "Sdks"),
+                    RoslynTargetsPath = !string.IsNullOrEmpty(options.RoslynTargetsPath)
+                        ? options.RoslynTargetsPath
+                        : Path.Combine(toolsPath, "Roslyn"),
+                };
+            }
+
             foreach (var projectFile in projectFiles)
             {
-                var project = Project.GetProject(manager, options, projectFile);
+                var project = Project.GetProject(manager, buildEnvironment, projectFile, options.MsBuildBinlog);
                 if (project == null)
                 {
                     continue;

@@ -18,5 +18,17 @@ namespace ReferenceTrimmer
 
         [Option('b', "binlog", Required = false, Hidden = true)]
         public bool MsBuildBinlog { get; set; }
+
+        [Option('t', "toolspath", Required = false, HelpText = "Overrides the MsBuild tools path")]
+        public string ToolsPath { get; set; }
+
+        [Option('e', "extensionspath", Required = false, HelpText = "Overrides the MsBuild extensions path. When provided, -toolspath must also be provided.")]
+        public string ExtensionsPath { get; set; }
+
+        [Option('s', "sdkspath", Required = false, HelpText = "Overrides the MsBuild sdks path. When provided, -toolspath must also be provided.")]
+        public string SdksPath { get; set; }
+
+        [Option('c', "roslyntargetspath", Required = false, HelpText = "Overrides the MsBuild roslyn targets path. When provided, -toolspath must also be provided.")]
+        public string RoslynTargetsPath { get; set; }
     }
 }
