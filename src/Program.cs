@@ -44,35 +44,7 @@ namespace ReferenceTrimmer
 
             var projectFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*proj", SearchOption.AllDirectories);
             var manager = new AnalyzerManager(new AnalyzerManagerOptions { CleanBeforeCompile = false });
-
-            BuildEnvironment buildEnvironment = null;
-            if (!string.IsNullOrEmpty(options.ToolsPath)
-                || !string.IsNullOrEmpty(options.ExtensionsPath)
-                || !string.IsNullOrEmpty(options.SdksPath)
-                || !string.IsNullOrEmpty(options.RoslynTargetsPath))
-            {
-                if (string.IsNullOrEmpty(options.ToolsPath))
-                {
-                    Console.WriteLine("ToolsPath must be provided when ExtensionsPath, SdksPath, or RoslynTargetsPath are provided");
-                    return;
-                }
-
-                var toolsPath = options.ToolsPath;
-                var extensionsPath = !string.IsNullOrEmpty(options.ExtensionsPath)
-                    ? options.ExtensionsPath
-                    : Path.GetFullPath(Path.Combine(toolsPath, @"..\..\"));
-                buildEnvironment = new BuildEnvironment
-                {
-                    ToolsPath = toolsPath,
-                    ExtensionsPath = extensionsPath,
-                    SDKsPath = !string.IsNullOrEmpty(options.SdksPath)
-                        ? options.SdksPath
-                        : Path.Combine(extensionsPath, "Sdks"),
-                    RoslynTargetsPath = !string.IsNullOrEmpty(options.RoslynTargetsPath)
-                        ? options.RoslynTargetsPath
-                        : Path.Combine(toolsPath, "Roslyn"),
-                };
-            }
+            var buildEnvironment = CreateBuildEnvironment(options);
 
             foreach (var projectFile in projectFiles)
             {
@@ -113,6 +85,35 @@ namespace ReferenceTrimmer
                     }
                 }
             }
+        }
+
+        private static BuildEnvironment CreateBuildEnvironment(Options options)
+        {
+            if (string.IsNullOrEmpty(options.ToolsPath)
+                && string.IsNullOrEmpty(options.ExtensionsPath)
+                && string.IsNullOrEmpty(options.SdksPath)
+                && string.IsNullOrEmpty(options.RoslynTargetsPath))
+            {
+                return null;
+            }
+
+            if (string.IsNullOrEmpty(options.ToolsPath))
+            {
+                throw new ArgumentException("ToolsPath must be provided when ExtensionsPath, SdksPath, or RoslynTargetsPath are provided");
+            }
+
+            var toolsPath = options.ToolsPath;
+            var msBuildExePath = Path.Combine(toolsPath, "MSBuild.exe");
+            var extensionsPath = !string.IsNullOrEmpty(options.ExtensionsPath)
+                ? options.ExtensionsPath
+                : Path.GetFullPath(Path.Combine(toolsPath, @"..\..\"));
+            var sdksPath = !string.IsNullOrEmpty(options.SdksPath)
+                ? options.SdksPath
+                : Path.Combine(extensionsPath, "Sdks");
+            var roslynTargetsPath = !string.IsNullOrEmpty(options.RoslynTargetsPath)
+                ? options.RoslynTargetsPath
+                : Path.Combine(toolsPath, "Roslyn");
+            return new BuildEnvironment(msBuildExePath, extensionsPath, sdksPath, roslynTargetsPath);
         }
 
         private static void WriteErrors(IEnumerable<Error> errors)

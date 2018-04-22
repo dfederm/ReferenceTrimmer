@@ -11,14 +11,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Using a specific compiler version to match the APIs the Analyzers require -->
-    <PackageReference Include="Microsoft.Net.Compilers" Version="2.8.0" />
+    <!-- Using a the latest Roslyn compiler -->
+    <PackageReference Include="Microsoft.Net.Compilers" Version="2.8.0-beta4" />
 
     <!-- Analyzers -->
-    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.6.0-beta2">
+    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.6.0">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="StyleCop.Analyzers" Version="1.1.0-beta004">
+    <PackageReference Include="StyleCop.Analyzers" Version="1.1.0-beta006">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
