@@ -5,7 +5,6 @@
 namespace ReferenceTrimmer
 {
     using System;
-    using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
@@ -13,19 +12,38 @@ namespace ReferenceTrimmer
     using Buildalyzer;
     using Buildalyzer.Environment;
     using CommandLine;
+    using Microsoft.Extensions.Logging;
+    using NLog;
+    using NLog.Config;
+    using NLog.Extensions.Logging;
+    using NLog.Targets;
+    using ILogger = Microsoft.Extensions.Logging.ILogger;
+    using LogLevel = NLog.LogLevel;
 
-    internal static class Program
+    public static class Program
     {
-        private static void Main(string[] args)
+        public static void Main(string[] args)
         {
-            Parser.Default.ParseArguments<Options>(args)
-                .WithParsed(Run)
-                .WithNotParsed(WriteErrors);
+            var loggerFactory = new LoggerFactory()
+                .AddNLog();
+            ConfigureNLog();
+
+            var logger = loggerFactory.CreateLogger("ReferenceTrimmer");
+
+            Parser.Default.ParseArguments<Arguments>(args)
+                .WithParsed(options => Run(options, logger))
+                .WithNotParsed(errors =>
+                {
+                    foreach (var error in errors)
+                    {
+                        logger.LogError(error.ToString());
+                    }
+                });
         }
 
-        private static void Run(Options options)
+        public static void Run(Arguments arguments, ILogger logger)
         {
-            if (options.Debug)
+            if (arguments.Debug)
             {
                 Console.WriteLine($"Waiting for a debugger to attach (PID {Process.GetCurrentProcess().Id})");
                 while (!Debugger.IsAttached)
@@ -37,18 +55,18 @@ namespace ReferenceTrimmer
             }
 
             // MsBuild will end up using the current working directory at time, so set it to the root.
-            if (!string.IsNullOrEmpty(options.Root))
+            if (!string.IsNullOrEmpty(arguments.Root))
             {
-                Directory.SetCurrentDirectory(options.Root);
+                Directory.SetCurrentDirectory(arguments.Root);
             }
 
             var projectFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*proj", SearchOption.AllDirectories);
             var manager = new AnalyzerManager(new AnalyzerManagerOptions { CleanBeforeCompile = false });
-            var buildEnvironment = CreateBuildEnvironment(options);
+            var buildEnvironment = CreateBuildEnvironment(arguments);
 
             foreach (var projectFile in projectFiles)
             {
-                var project = Project.GetProject(manager, buildEnvironment, projectFile, options.MsBuildBinlog);
+                var project = Project.GetProject(manager, buildEnvironment, logger, projectFile, arguments.MsBuildBinlog);
                 if (project == null)
                 {
                     continue;
@@ -58,7 +76,7 @@ namespace ReferenceTrimmer
                 {
                     if (!project.AssemblyReferences.Contains(reference))
                     {
-                        Console.WriteLine($"Reference {reference} can be removed from {projectFile}");
+                        logger.LogInformation($"Reference {reference} can be removed from {projectFile}");
                     }
                 }
 
@@ -67,7 +85,7 @@ namespace ReferenceTrimmer
                     var projectReferenceAssemblyName = projectReference.AssemblyName;
                     if (!project.AssemblyReferences.Contains(projectReferenceAssemblyName))
                     {
-                        Console.WriteLine($"ProjectReference {projectReference.Name} can be removed from {projectFile}");
+                        logger.LogInformation($"ProjectReference {projectReference.Name} can be removed from {projectFile}");
                     }
                 }
 
@@ -81,47 +99,62 @@ namespace ReferenceTrimmer
 
                     if (!packageAssemblies.Any(packageAssembly => project.AssemblyReferences.Contains(packageAssembly)))
                     {
-                        Console.WriteLine($"PackageReference {packageReference} can be removed from {projectFile}");
+                        logger.LogInformation($"PackageReference {packageReference} can be removed from {projectFile}");
                     }
                 }
             }
         }
 
-        private static BuildEnvironment CreateBuildEnvironment(Options options)
+        private static void ConfigureNLog()
         {
-            if (string.IsNullOrEmpty(options.ToolsPath)
-                && string.IsNullOrEmpty(options.ExtensionsPath)
-                && string.IsNullOrEmpty(options.SdksPath)
-                && string.IsNullOrEmpty(options.RoslynTargetsPath))
+            var config = new LoggingConfiguration();
+
+            var consoleTarget = new ColoredConsoleTarget
+            {
+                Layout = @"[${date:format=HH\:mm\:ss.fff}] ${message}",
+            };
+            config.AddTarget("console", consoleTarget);
+            config.LoggingRules.Add(new LoggingRule("*", LogLevel.Info, consoleTarget));
+
+            var fileTarget = new FileTarget
+            {
+                FileName = "${logger}.log",
+                Layout = @"[${date:format=HH\:mm\:ss.fff}] ${level:uppercase=true} ${message}",
+                DeleteOldFileOnStartup = true,
+            };
+            config.AddTarget("file", fileTarget);
+            config.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, fileTarget));
+
+            LogManager.Configuration = config;
+        }
+
+        private static BuildEnvironment CreateBuildEnvironment(Arguments arguments)
+        {
+            if (string.IsNullOrEmpty(arguments.ToolsPath)
+                && string.IsNullOrEmpty(arguments.ExtensionsPath)
+                && string.IsNullOrEmpty(arguments.SdksPath)
+                && string.IsNullOrEmpty(arguments.RoslynTargetsPath))
             {
                 return null;
             }
 
-            if (string.IsNullOrEmpty(options.ToolsPath))
+            if (string.IsNullOrEmpty(arguments.ToolsPath))
             {
                 throw new ArgumentException("ToolsPath must be provided when ExtensionsPath, SdksPath, or RoslynTargetsPath are provided");
             }
 
-            var toolsPath = options.ToolsPath;
+            var toolsPath = arguments.ToolsPath;
             var msBuildExePath = Path.Combine(toolsPath, "MSBuild.exe");
-            var extensionsPath = !string.IsNullOrEmpty(options.ExtensionsPath)
-                ? options.ExtensionsPath
+            var extensionsPath = !string.IsNullOrEmpty(arguments.ExtensionsPath)
+                ? arguments.ExtensionsPath
                 : Path.GetFullPath(Path.Combine(toolsPath, @"..\..\"));
-            var sdksPath = !string.IsNullOrEmpty(options.SdksPath)
-                ? options.SdksPath
+            var sdksPath = !string.IsNullOrEmpty(arguments.SdksPath)
+                ? arguments.SdksPath
                 : Path.Combine(extensionsPath, "Sdks");
-            var roslynTargetsPath = !string.IsNullOrEmpty(options.RoslynTargetsPath)
-                ? options.RoslynTargetsPath
+            var roslynTargetsPath = !string.IsNullOrEmpty(arguments.RoslynTargetsPath)
+                ? arguments.RoslynTargetsPath
                 : Path.Combine(toolsPath, "Roslyn");
             return new BuildEnvironment(msBuildExePath, extensionsPath, sdksPath, roslynTargetsPath);
-        }
-
-        private static void WriteErrors(IEnumerable<Error> errors)
-        {
-            foreach (var error in errors)
-            {
-                Console.WriteLine(error.ToString());
-            }
         }
     }
 }

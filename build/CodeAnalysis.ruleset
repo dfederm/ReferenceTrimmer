@@ -9,6 +9,8 @@
   <Rules AnalyzerId="StyleCop.Analyzers" RuleNamespace="StyleCop.Analyzers">
     <!-- XmlCommentAnalysisDisabled -->
     <Rule Id="SA0001" Action="None" />
+    <!-- ElementsMustBeDocumented -->
+    <Rule Id="SA1600" Action="None" />
   </Rules>
 
 </RuleSet>

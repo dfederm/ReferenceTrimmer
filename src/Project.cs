@@ -11,6 +11,7 @@ namespace ReferenceTrimmer
     using System.Reflection;
     using Buildalyzer;
     using Buildalyzer.Environment;
+    using Microsoft.Extensions.Logging;
     using MsBuildProject = Microsoft.Build.Evaluation.Project;
 
     internal sealed class Project
@@ -38,12 +39,13 @@ namespace ReferenceTrimmer
         public static Project GetProject(
             AnalyzerManager manager,
             BuildEnvironment buildEnvironment,
+            ILogger logger,
             string projectFile,
             bool useBinlog)
         {
             if (!Projects.TryGetValue(projectFile, out var project))
             {
-                project = Create(manager, buildEnvironment, projectFile, useBinlog);
+                project = Create(manager, buildEnvironment, logger, projectFile, useBinlog);
                 Projects.Add(projectFile, project);
             }
 
@@ -53,6 +55,7 @@ namespace ReferenceTrimmer
         private static Project Create(
             AnalyzerManager manager,
             BuildEnvironment buildEnvironment,
+            ILogger logger,
             string projectFile,
             bool useBinlog)
         {
@@ -77,15 +80,15 @@ namespace ReferenceTrimmer
                 if (!File.Exists(assemblyFileFullPath))
                 {
                     // Can't analyze this project since it hasn't been built
-                    Console.WriteLine($"Assembly did not exist. Ensure you've previously built it. Assembly: {assemblyFileFullPath}");
+                    logger.LogError($"Assembly did not exist. Ensure you've previously built it. Assembly: {assemblyFileFullPath}");
                     return null;
                 }
 
-                var assembly = LoadAssembly(assemblyFileFullPath);
+                var assembly = LoadAssembly(assemblyFileFullPath, logger);
                 if (assembly == null)
                 {
                     // Can't analyze this project since we couldn't load its assembly
-                    Console.WriteLine($"Assembly could not be loaded. Assembly: {assemblyFileFullPath}");
+                    logger.LogError($"Assembly could not be loaded. Assembly: {assemblyFileFullPath}");
                     return null;
                 }
 
@@ -102,7 +105,7 @@ namespace ReferenceTrimmer
                 var projectReferences = msBuildProject
                     .GetItems("ProjectReference")
                     .Select(reference => reference.EvaluatedInclude)
-                    .Select(projectReference => GetProject(manager, buildEnvironment, Path.GetFullPath(Path.Combine(projectDirectory, projectReference)), useBinlog))
+                    .Select(projectReference => GetProject(manager, buildEnvironment, logger, Path.GetFullPath(Path.Combine(projectDirectory, projectReference)), useBinlog))
                     .Where(dependency => dependency != null)
                     .ToList();
 
@@ -193,7 +196,7 @@ namespace ReferenceTrimmer
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Exception while trying to load: {projectFile}. Exception: {e}");
+                logger.LogError($"Exception while trying to load: {projectFile}. Exception: {e}");
                 return null;
             }
             finally
@@ -202,7 +205,7 @@ namespace ReferenceTrimmer
             }
         }
 
-        private static Assembly LoadAssembly(string assemblyFile)
+        private static Assembly LoadAssembly(string assemblyFile, ILogger logger)
         {
             try
             {
@@ -210,9 +213,7 @@ namespace ReferenceTrimmer
             }
             catch (Exception e)
             {
-                Console.WriteLine(assemblyFile);
-                Console.WriteLine(e);
-                Console.WriteLine();
+                logger.LogError(e, $"Exception while loading assembly {assemblyFile}");
                 return null;
             }
         }
