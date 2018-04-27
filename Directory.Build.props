@@ -8,6 +8,7 @@
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)\build\CodeAnalysis.ruleset</CodeAnalysisRuleSet>
+    <Deterministic>true</Deterministic>
   </PropertyGroup>
 
   <ItemGroup>

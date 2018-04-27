@@ -31,7 +31,11 @@ namespace ReferenceTrimmer
             var logger = loggerFactory.CreateLogger("ReferenceTrimmer");
 
             Parser.Default.ParseArguments<Arguments>(args)
-                .WithParsed(options => Run(options, logger))
+                .WithParsed(options =>
+                {
+                    logger.LogInformation("Full logs can be found in ReferenceTrimmer.log");
+                    Run(options, logger);
+                })
                 .WithNotParsed(errors =>
                 {
                     foreach (var error in errors)
@@ -85,10 +89,10 @@ namespace ReferenceTrimmer
 
                 foreach (var projectReference in project.ProjectReferences)
                 {
-                    var projectReferenceAssemblyName = projectReference.AssemblyName;
+                    var projectReferenceAssemblyName = projectReference.Project.AssemblyName;
                     if (!project.AssemblyReferences.Contains(projectReferenceAssemblyName))
                     {
-                        logger.LogInformation($"ProjectReference {projectReference.Name} can be removed from {relativeProjectFile}");
+                        logger.LogInformation($"ProjectReference {projectReference.UnevaluatedInclude} can be removed from {relativeProjectFile}");
                     }
                 }
 

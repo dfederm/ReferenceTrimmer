@@ -30,7 +30,7 @@ namespace ReferenceTrimmer
 
         public List<string> References { get; private set; }
 
-        public List<Project> ProjectReferences { get; private set; }
+        public List<ProjectReference> ProjectReferences { get; private set; }
 
         public List<string> PackageReferences { get; private set; }
 
@@ -105,9 +105,10 @@ namespace ReferenceTrimmer
 
                 var projectReferences = msBuildProject
                     .GetItems("ProjectReference")
-                    .Select(reference => reference.EvaluatedInclude)
-                    .Select(projectReference => GetProject(manager, buildEnvironment, logger, Path.GetFullPath(Path.Combine(projectDirectory, projectReference)), useBinlog))
-                    .Where(dependency => dependency != null)
+                    .Select(reference => new ProjectReference(
+                        GetProject(manager, buildEnvironment, logger, Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude)), useBinlog),
+                        reference.UnevaluatedInclude))
+                    .Where(projectReference => projectReference.Project != null)
                     .ToList();
 
                 var packageReferences = msBuildProject
@@ -118,7 +119,7 @@ namespace ReferenceTrimmer
                 // Certain project types may require references simply to copy them to the output folder to satisfy transitive dependencies.
                 if (NeedsTransitiveAssemblyReferences(msBuildProject))
                 {
-                    projectReferences.ForEach(projectReference => assemblyReferences.UnionWith(projectReference.AssemblyReferences));
+                    projectReferences.ForEach(projectReference => assemblyReferences.UnionWith(projectReference.Project.AssemblyReferences));
                 }
 
                 // Only bother doing a design-time build if there is a reason to
@@ -149,7 +150,7 @@ namespace ReferenceTrimmer
                         .ToDictionary(group => group.Key, group => group.ToList());
 
                     var resolvedPackageReferences = msBuildCompiledProject.GetItems("Reference")
-                        .Where(reference => reference.GetMetadataValue("NuGetSourceType").Equals("Package", StringComparison.OrdinalIgnoreCase));
+                        .Where(reference => reference.HasMetadata("NuGetPackageId"));
                     foreach (var resolvedPackageReference in resolvedPackageReferences)
                     {
                         var assemblyName = Path.GetFileNameWithoutExtension(resolvedPackageReference.EvaluatedInclude);
