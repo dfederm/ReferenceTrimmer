@@ -60,7 +60,8 @@ namespace ReferenceTrimmer
                 Directory.SetCurrentDirectory(arguments.Root);
             }
 
-            var projectFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*proj", SearchOption.AllDirectories);
+            var workingDirectory = Directory.GetCurrentDirectory();
+            var projectFiles = Directory.EnumerateFiles(workingDirectory, "*.*proj", SearchOption.AllDirectories);
             var manager = new AnalyzerManager(new AnalyzerManagerOptions { CleanBeforeCompile = false });
             var buildEnvironment = CreateBuildEnvironment(arguments);
 
@@ -72,11 +73,13 @@ namespace ReferenceTrimmer
                     continue;
                 }
 
+                var relativeProjectFile = projectFile.Substring(workingDirectory.Length + 1);
+
                 foreach (var reference in project.References)
                 {
                     if (!project.AssemblyReferences.Contains(reference))
                     {
-                        logger.LogInformation($"Reference {reference} can be removed from {projectFile}");
+                        logger.LogInformation($"Reference {reference} can be removed from {relativeProjectFile}");
                     }
                 }
 
@@ -85,7 +88,7 @@ namespace ReferenceTrimmer
                     var projectReferenceAssemblyName = projectReference.AssemblyName;
                     if (!project.AssemblyReferences.Contains(projectReferenceAssemblyName))
                     {
-                        logger.LogInformation($"ProjectReference {projectReference.Name} can be removed from {projectFile}");
+                        logger.LogInformation($"ProjectReference {projectReference.Name} can be removed from {relativeProjectFile}");
                     }
                 }
 
@@ -99,7 +102,7 @@ namespace ReferenceTrimmer
 
                     if (!packageAssemblies.Any(packageAssembly => project.AssemblyReferences.Contains(packageAssembly)))
                     {
-                        logger.LogInformation($"PackageReference {packageReference} can be removed from {projectFile}");
+                        logger.LogInformation($"PackageReference {packageReference} can be removed from {relativeProjectFile}");
                     }
                 }
             }

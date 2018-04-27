@@ -99,6 +99,7 @@ namespace ReferenceTrimmer
 
                 var references = msBuildProject
                     .GetItems("Reference")
+                    .Where(reference => !reference.UnevaluatedInclude.Equals("@(_SDKImplicitReference)", StringComparison.OrdinalIgnoreCase))
                     .Select(reference => reference.EvaluatedInclude)
                     .ToList();
 
