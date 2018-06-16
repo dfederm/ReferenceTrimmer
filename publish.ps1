@@ -3,7 +3,7 @@ Param(
   [string]$runtime = 'win10-x64',
   [string[]]$frameworks = @("netcoreapp2.0","net461"),
   [string]$output = (Join-Path (Get-Location) 'Publish'),
-  [string]$version = '1.2.0'
+  [string]$version = '1.3.0'
 )
 
 Remove-Item -Path $output -Recurse -Force -ErrorAction SilentlyContinue
