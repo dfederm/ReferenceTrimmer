@@ -108,16 +108,7 @@ namespace ReferenceTrimmer.Tests
                 var loggerFactory = new LoggerFactory();
                 loggerFactory.AddProvider(new TextWriterLoggerProvider(writer));
 
-                // Providing a Root messes with the current working directory, so we need to stash the old one and restore it later.
-                var oldCurrentDirectory = Directory.GetCurrentDirectory();
-                try
-                {
-                    Program.Run(arguments, loggerFactory.CreateLogger(this.TestContext.TestName));
-                }
-                finally
-                {
-                    Directory.SetCurrentDirectory(oldCurrentDirectory);
-                }
+                Program.Run(arguments, loggerFactory.CreateLogger(this.TestContext.TestName));
             }
 
             return logs.ToString().Split(NewLineCharacters, StringSplitOptions.RemoveEmptyEntries);
