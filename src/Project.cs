@@ -8,7 +8,8 @@ namespace ReferenceTrimmer
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
-    using System.Reflection;
+    using System.Reflection.Metadata;
+    using System.Reflection.PortableExecutable;
     using Buildalyzer;
     using Buildalyzer.Environment;
     using Microsoft.Extensions.Logging;
@@ -88,18 +89,31 @@ namespace ReferenceTrimmer
                     return null;
                 }
 
-                var assembly = LoadAssembly(assemblyFileFullPath, logger);
-                if (assembly == null)
+                // Read metadata from the assembly, such as the assembly name and its references
+                string assemblyName;
+                var assemblyReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using (var stream = File.OpenRead(assemblyFileFullPath))
+                using (var peReader = new PEReader(stream))
                 {
-                    // Can't analyze this project since we couldn't load its assembly
-                    logger.LogError($"Assembly could not be loaded. Assembly: {assemblyFileFullPath}");
-                    return null;
-                }
+                    var metadata = peReader.GetMetadataReader(MetadataReaderOptions.ApplyWindowsRuntimeProjections);
+                    if (!metadata.IsAssembly)
+                    {
+                        logger.LogError($"{assemblyFileFullPath} is not an assembly");
+                        return null;
+                    }
 
-                var assemblyReferences = assembly
-                    .GetReferencedAssemblies()
-                    .Select(name => name.Name)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    assemblyName = metadata.GetString(metadata.GetAssemblyDefinition().Name);
+
+                    foreach (var assemblyReferenceHandle in metadata.AssemblyReferences)
+                    {
+                        var reference = metadata.GetAssemblyReference(assemblyReferenceHandle);
+                        var name = metadata.GetString(reference.Name);
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            assemblyReferences.Add(name);
+                        }
+                    }
+                }
 
                 var references = msBuildProject
                     .GetItems("Reference")
@@ -164,7 +178,7 @@ namespace ReferenceTrimmer
                         .Where(reference => reference.HasMetadata("NuGetPackageId"));
                     foreach (var resolvedPackageReference in resolvedPackageReferences)
                     {
-                        var assemblyName = Path.GetFileNameWithoutExtension(resolvedPackageReference.EvaluatedInclude);
+                        var packageAssemblyName = Path.GetFileNameWithoutExtension(resolvedPackageReference.EvaluatedInclude);
 
                         // Add the assembly to the containing package and all parent packages.
                         var seenParents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -180,7 +194,7 @@ namespace ReferenceTrimmer
                                 packageAssemblies.Add(packageId, assemblies);
                             }
 
-                            assemblies.Add(assemblyName);
+                            assemblies.Add(packageAssemblyName);
 
                             if (packageParents.TryGetValue(packageId, out var parents))
                             {
@@ -199,7 +213,7 @@ namespace ReferenceTrimmer
                 return new Project
                 {
                     Name = projectFile,
-                    AssemblyName = assembly.GetName().Name,
+                    AssemblyName = assemblyName,
                     AssemblyReferences = assemblyReferences,
                     References = references,
                     ProjectReferences = projectReferences,
@@ -210,19 +224,6 @@ namespace ReferenceTrimmer
             catch (Exception e)
             {
                 logger.LogError($"Exception while trying to load: {projectFile}. Exception: {e}");
-                return null;
-            }
-        }
-
-        private static Assembly LoadAssembly(string assemblyFile, ILogger logger)
-        {
-            try
-            {
-                return Assembly.LoadFile(assemblyFile);
-            }
-            catch (Exception e)
-            {
-                logger.LogError(e, $"Exception while loading assembly {assemblyFile}");
                 return null;
             }
         }
