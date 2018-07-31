@@ -53,20 +53,24 @@ namespace ReferenceTrimmer
         }
 
         private static Project Create(
-            AnalyzerManager manager,
+            AnalyzerManager analyzerManager,
             BuildEnvironment buildEnvironment,
             ILogger logger,
             string projectFile,
             bool useBinlog)
         {
-            var oldCurrentDirectory = Directory.GetCurrentDirectory();
-            Directory.SetCurrentDirectory(Path.GetDirectoryName(projectFile));
             try
             {
-                var analyzer = buildEnvironment == null
-                    ? manager.GetProject(projectFile)
-                    : manager.GetProject(projectFile, buildEnvironment);
-                var msBuildProject = analyzer.Load();
+                var projectAnalyzer = analyzerManager.GetProject(projectFile);
+
+                if (buildEnvironment == null)
+                {
+                    buildEnvironment = projectAnalyzer.EnvironmentFactory.GetBuildEnvironment();
+                }
+
+                buildEnvironment = buildEnvironment.WithTargetsToBuild("Compile");
+
+                var msBuildProject = projectAnalyzer.Load(buildEnvironment);
 
                 var assemblyFile = msBuildProject.GetItems("IntermediateAssembly").FirstOrDefault()?.EvaluatedInclude;
                 if (string.IsNullOrEmpty(assemblyFile))
@@ -106,7 +110,7 @@ namespace ReferenceTrimmer
                 var projectReferences = msBuildProject
                     .GetItems("ProjectReference")
                     .Select(reference => new ProjectReference(
-                        GetProject(manager, buildEnvironment, logger, Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude)), useBinlog),
+                        GetProject(analyzerManager, buildEnvironment, logger, Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude)), useBinlog),
                         reference.UnevaluatedInclude))
                     .Where(projectReference => projectReference.Project != null)
                     .ToList();
@@ -128,12 +132,19 @@ namespace ReferenceTrimmer
                 {
                     if (useBinlog)
                     {
-                        analyzer.WithBinaryLog();
+                        projectAnalyzer.AddBinaryLogger();
                     }
 
-                    var msBuildCompiledProject = analyzer.Compile();
+                    var analyzerResult = projectAnalyzer.Build(buildEnvironment);
+                    if (!analyzerResult.OverallSuccess)
+                    {
+                        logger.LogError($"Failed to build: {projectFile}.");
+                        return null;
+                    }
 
-                    var packageParents = msBuildCompiledProject.GetItems("_ActiveTFMPackageDependencies")
+                    var projectInstance = analyzerResult.ProjectInstance;
+
+                    var packageParents = projectInstance.GetItems("_ActiveTFMPackageDependencies")
                         .Where(package => !string.IsNullOrEmpty(package.GetMetadataValue("ParentPackage")))
                         .GroupBy(
                             package =>
@@ -149,7 +160,7 @@ namespace ReferenceTrimmer
                             StringComparer.OrdinalIgnoreCase)
                         .ToDictionary(group => group.Key, group => group.ToList());
 
-                    var resolvedPackageReferences = msBuildCompiledProject.GetItems("Reference")
+                    var resolvedPackageReferences = projectInstance.GetItems("Reference")
                         .Where(reference => reference.HasMetadata("NuGetPackageId"));
                     foreach (var resolvedPackageReference in resolvedPackageReferences)
                     {
@@ -200,10 +211,6 @@ namespace ReferenceTrimmer
             {
                 logger.LogError($"Exception while trying to load: {projectFile}. Exception: {e}");
                 return null;
-            }
-            finally
-            {
-                Directory.SetCurrentDirectory(oldCurrentDirectory);
             }
         }
 

@@ -96,7 +96,8 @@ namespace ReferenceTrimmer.Tests
             var logs = new StringBuilder();
             using (var writer = new StringWriter(logs))
             {
-                var arguments = new Arguments { Root = testPath };
+                // Use binlog for debugging help
+                var arguments = new Arguments { Root = testPath, MsBuildBinlog = true };
                 var loggerFactory = new LoggerFactory();
                 loggerFactory.AddProvider(new TextWriterLoggerProvider(writer));
 

@@ -8,7 +8,6 @@ namespace ReferenceTrimmer
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
-    using System.Threading;
     using Buildalyzer;
     using Buildalyzer.Environment;
     using CommandLine;
@@ -49,24 +48,13 @@ namespace ReferenceTrimmer
         {
             if (arguments.Debug)
             {
-                Console.WriteLine($"Waiting for a debugger to attach (PID {Process.GetCurrentProcess().Id})");
-                while (!Debugger.IsAttached)
-                {
-                    Thread.Sleep(1000);
-                }
-
+                Debugger.Launch();
                 Debugger.Break();
             }
 
-            // MsBuild will end up using the current working directory at time, so set it to the root.
-            if (!string.IsNullOrEmpty(arguments.Root))
-            {
-                Directory.SetCurrentDirectory(arguments.Root);
-            }
-
-            var workingDirectory = Directory.GetCurrentDirectory();
-            var projectFiles = Directory.EnumerateFiles(workingDirectory, "*.*proj", SearchOption.AllDirectories);
-            var manager = new AnalyzerManager(new AnalyzerManagerOptions { CleanBeforeCompile = false });
+            var root = arguments.Root ?? Directory.GetCurrentDirectory();
+            var projectFiles = Directory.EnumerateFiles(root, "*.*proj", SearchOption.AllDirectories);
+            var manager = new AnalyzerManager();
             var buildEnvironment = CreateBuildEnvironment(arguments);
 
             foreach (var projectFile in projectFiles)
@@ -77,7 +65,7 @@ namespace ReferenceTrimmer
                     continue;
                 }
 
-                var relativeProjectFile = projectFile.Substring(workingDirectory.Length + 1);
+                var relativeProjectFile = projectFile.Substring(root.Length + 1);
 
                 foreach (var reference in project.References)
                 {
@@ -161,7 +149,8 @@ namespace ReferenceTrimmer
             var roslynTargetsPath = !string.IsNullOrEmpty(arguments.RoslynTargetsPath)
                 ? arguments.RoslynTargetsPath
                 : Path.Combine(toolsPath, "Roslyn");
-            return new BuildEnvironment(msBuildExePath, extensionsPath, sdksPath, roslynTargetsPath);
+
+            return new BuildEnvironment(true, new[] { "Compile" }, msBuildExePath, extensionsPath, sdksPath, roslynTargetsPath);
         }
     }
 }
