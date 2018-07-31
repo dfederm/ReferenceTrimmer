@@ -58,6 +58,13 @@ namespace ReferenceTrimmer.Tests
         }
 
         [TestMethod]
+        public void UsedIndirectPackageReference()
+        {
+            var logs = this.RunTest();
+            Assert.AreEqual(0, logs.Length);
+        }
+
+        [TestMethod]
         public void UnusedPackageReference()
         {
             var logs = this.RunTest();

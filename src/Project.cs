@@ -13,6 +13,10 @@ namespace ReferenceTrimmer
     using Buildalyzer;
     using Buildalyzer.Environment;
     using Microsoft.Extensions.Logging;
+    using NuGet.Common;
+    using NuGet.Frameworks;
+    using NuGet.ProjectModel;
+    using ILogger = Microsoft.Extensions.Logging.ILogger;
     using MsBuildProject = Microsoft.Build.Evaluation.Project;
 
     internal sealed class Project
@@ -68,8 +72,6 @@ namespace ReferenceTrimmer
                 {
                     buildEnvironment = projectAnalyzer.EnvironmentFactory.GetBuildEnvironment();
                 }
-
-                buildEnvironment = buildEnvironment.WithTargetsToBuild("Compile");
 
                 var msBuildProject = projectAnalyzer.Load(buildEnvironment);
 
@@ -140,69 +142,80 @@ namespace ReferenceTrimmer
                     projectReferences.ForEach(projectReference => assemblyReferences.UnionWith(projectReference.Project.AssemblyReferences));
                 }
 
-                // Only bother doing a design-time build if there is a reason to
+                // Collect package assemblies
                 var packageAssemblies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
                 if (packageReferences.Count > 0)
                 {
-                    if (useBinlog)
+                    var projectAssetsFile = msBuildProject.GetPropertyValue("ProjectAssetsFile");
+                    if (!string.IsNullOrEmpty(projectAssetsFile) && File.Exists(projectAssetsFile))
                     {
-                        projectAnalyzer.AddBinaryLogger();
-                    }
+                        var lockFile = LockFileUtilities.GetLockFile(projectAssetsFile, NullLogger.Instance);
 
-                    var analyzerResult = projectAnalyzer.Build(buildEnvironment);
-                    if (!analyzerResult.OverallSuccess)
-                    {
-                        logger.LogError($"Failed to build: {projectFile}.");
-                        return null;
-                    }
+                        var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
 
-                    var projectInstance = analyzerResult.ProjectInstance;
+                        var nuGetTargetMoniker = msBuildProject.GetPropertyValue("NuGetTargetMoniker");
+                        var runtimeIdentifier = msBuildProject.GetPropertyValue("RuntimeIdentifier");
 
-                    var packageParents = projectInstance.GetItems("_ActiveTFMPackageDependencies")
-                        .Where(package => !string.IsNullOrEmpty(package.GetMetadataValue("ParentPackage")))
-                        .GroupBy(
-                            package =>
-                            {
-                                var packageIdentity = package.EvaluatedInclude;
-                                return packageIdentity.Substring(0, packageIdentity.IndexOf('/'));
-                            },
-                            package =>
-                            {
-                                var parentPackageIdentity = package.GetMetadataValue("ParentPackage");
-                                return parentPackageIdentity.Substring(0, parentPackageIdentity.IndexOf('/'));
-                            },
-                            StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(group => group.Key, group => group.ToList());
+                        var nugetTarget = lockFile.GetTarget(NuGetFramework.Parse(nuGetTargetMoniker), runtimeIdentifier);
 
-                    var resolvedPackageReferences = projectInstance.GetItems("Reference")
-                        .Where(reference => reference.HasMetadata("NuGetPackageId"));
-                    foreach (var resolvedPackageReference in resolvedPackageReferences)
-                    {
-                        var packageAssemblyName = Path.GetFileNameWithoutExtension(resolvedPackageReference.EvaluatedInclude);
-
-                        // Add the assembly to the containing package and all parent packages.
-                        var seenParents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        var queue = new Queue<string>();
-                        queue.Enqueue(resolvedPackageReference.GetMetadataValue("NuGetPackageId"));
-                        while (queue.Count > 0)
+                        // Compute the hierarchy of packages.
+                        // Keys are packages and values are packages which depend on that package.
+                        var nugetDependants = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var nugetLibrary in nugetTarget.Libraries)
                         {
-                            var packageId = queue.Dequeue();
-
-                            if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                            var packageId = nugetLibrary.Name;
+                            foreach (var dependency in nugetLibrary.Dependencies)
                             {
-                                assemblies = new List<string>();
-                                packageAssemblies.Add(packageId, assemblies);
-                            }
-
-                            assemblies.Add(packageAssemblyName);
-
-                            if (packageParents.TryGetValue(packageId, out var parents))
-                            {
-                                foreach (var parent in parents)
+                                if (!nugetDependants.TryGetValue(dependency.Id, out var parents))
                                 {
-                                    if (seenParents.Add(parent))
+                                    parents = new List<string>();
+                                    nugetDependants.Add(dependency.Id, parents);
+                                }
+
+                                parents.Add(packageId);
+                            }
+                        }
+
+                        // Get the transitive closure of assemblies included by each package
+                        foreach (var nugetLibrary in nugetTarget.Libraries)
+                        {
+                            var nugetLibraryAssemblies = nugetLibrary.CompileTimeAssemblies
+                                .Select(item => item.Path)
+                                .Where(path => !path.EndsWith("_._", StringComparison.Ordinal)) // Ignore special packages
+                                .Select(path =>
+                                {
+                                    var packageFolderRelativePath = Path.Combine(nugetLibrary.Name, nugetLibrary.Version.ToNormalizedString(), path);
+                                    var fullPath = packageFolders
+                                        .Select(packageFolder => Path.Combine(packageFolder, packageFolderRelativePath))
+                                        .First(File.Exists);
+                                    return System.Reflection.AssemblyName.GetAssemblyName(fullPath).Name;
+                                })
+                                .ToList();
+
+                            // Walk up to add assemblies to all packages which directly or indirectly depend on this one.
+                            var seenDependants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            var queue = new Queue<string>();
+                            queue.Enqueue(nugetLibrary.Name);
+                            while (queue.Count > 0)
+                            {
+                                var packageId = queue.Dequeue();
+
+                                if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                                {
+                                    assemblies = new List<string>();
+                                    packageAssemblies.Add(packageId, assemblies);
+                                }
+
+                                assemblies.AddRange(nugetLibraryAssemblies);
+
+                                if (nugetDependants.TryGetValue(packageId, out var dependants))
+                                {
+                                    foreach (var dependant in dependants)
                                     {
-                                        queue.Enqueue(parent);
+                                        if (seenDependants.Add(dependant))
+                                        {
+                                            queue.Enqueue(dependant);
+                                        }
                                     }
                                 }
                             }
