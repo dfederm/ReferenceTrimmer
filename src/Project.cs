@@ -44,12 +44,13 @@ namespace ReferenceTrimmer
         public static Project GetProject(
             AnalyzerManager manager,
             BuildEnvironment buildEnvironment,
+            Arguments arguments,
             ILogger logger,
             string projectFile)
         {
             if (!Projects.TryGetValue(projectFile, out var project))
             {
-                project = Create(manager, buildEnvironment, logger, projectFile);
+                project = Create(manager, buildEnvironment, arguments, logger, projectFile);
                 Projects.Add(projectFile, project);
             }
 
@@ -59,9 +60,11 @@ namespace ReferenceTrimmer
         private static Project Create(
             AnalyzerManager analyzerManager,
             BuildEnvironment buildEnvironment,
+            Arguments arguments,
             ILogger logger,
             string projectFile)
         {
+            var relativeProjectFile = projectFile.Substring(arguments.Root.Length + 1);
             try
             {
                 var projectAnalyzer = analyzerManager.GetProject(projectFile);
@@ -82,11 +85,46 @@ namespace ReferenceTrimmer
 
                 var projectDirectory = Path.GetDirectoryName(projectFile);
                 var assemblyFileFullPath = Path.GetFullPath(Path.Combine(projectDirectory, assemblyFile));
+                var assemblyFileRelativePath = TryMakeRelative(arguments.Root, assemblyFileFullPath);
                 if (!File.Exists(assemblyFileFullPath))
                 {
-                    // Can't analyze this project since it hasn't been built
-                    logger.LogError($"Assembly did not exist. Ensure you've previously built it. Assembly: {assemblyFileFullPath}");
-                    return null;
+                    if (arguments.CompileIfNeeded)
+                    {
+                        logger.LogDebug($"Assembly {assemblyFileRelativePath} did not exist. Compiling {relativeProjectFile}...");
+
+                        // Compile usually requires a restore as well, if a Restore target exists
+                        var targetsToBuild = arguments.RestoreIfNeeded && msBuildProject.Targets.ContainsKey("Restore")
+                            ? new[] { "Restore", "Compile" }
+                            : new[] { "Compile" };
+
+                        // Need to actually compile, not just a design-time build, so copy the BuildEnvironment but set designTime = false
+                        var compileBuildEnvironment = new BuildEnvironment(
+                            false,
+                            targetsToBuild,
+                            buildEnvironment.MsBuildExePath,
+                            buildEnvironment.ExtensionsPath,
+                            buildEnvironment.SDKsPath,
+                            buildEnvironment.RoslynTargetsPath);
+
+                        // Need to set this manually to get the restore to work in VS (eg. unit tests)
+                        // See: https://github.com/daveaglick/Buildalyzer/issues/60
+                        projectAnalyzer.SetGlobalProperty("MSBuildToolsPath32", msBuildProject.GetPropertyValue("MSBuildToolsPath"));
+
+                        projectAnalyzer.AddBinaryLogger();
+
+                        var analyzerResult = projectAnalyzer.Build(compileBuildEnvironment);
+                        if (!analyzerResult.OverallSuccess)
+                        {
+                            logger.LogError($"Project failed to compile: {relativeProjectFile}");
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        // Can't analyze this project since it hasn't been built
+                        logger.LogError($"Assembly {assemblyFileRelativePath} did not exist. Ensure you've previously built it, or set the -CompileIfNeeded flag. Project: {relativeProjectFile}");
+                        return null;
+                    }
                 }
 
                 // Read metadata from the assembly, such as the assembly name and its references
@@ -98,7 +136,7 @@ namespace ReferenceTrimmer
                     var metadata = peReader.GetMetadataReader(MetadataReaderOptions.ApplyWindowsRuntimeProjections);
                     if (!metadata.IsAssembly)
                     {
-                        logger.LogError($"{assemblyFileFullPath} is not an assembly");
+                        logger.LogError($"{assemblyFileRelativePath} is not an assembly");
                         return null;
                     }
 
@@ -124,7 +162,7 @@ namespace ReferenceTrimmer
                 var projectReferences = msBuildProject
                     .GetItems("ProjectReference")
                     .Select(reference => new ProjectReference(
-                        GetProject(analyzerManager, buildEnvironment, logger, Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude))),
+                        GetProject(analyzerManager, buildEnvironment, arguments, logger, Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude))),
                         reference.UnevaluatedInclude))
                     .Where(projectReference => projectReference.Project != null)
                     .ToList();
@@ -145,75 +183,110 @@ namespace ReferenceTrimmer
                 if (packageReferences.Count > 0)
                 {
                     var projectAssetsFile = msBuildProject.GetPropertyValue("ProjectAssetsFile");
-                    if (!string.IsNullOrEmpty(projectAssetsFile) && File.Exists(projectAssetsFile))
+                    if (string.IsNullOrEmpty(projectAssetsFile))
                     {
-                        var lockFile = LockFileUtilities.GetLockFile(projectAssetsFile, NullLogger.Instance);
+                        logger.LogError($"Project with PackageReferences missing ProjectAssetsFile property: {relativeProjectFile}");
+                        return null;
+                    }
 
-                        var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
-
-                        var nuGetTargetMoniker = msBuildProject.GetPropertyValue("NuGetTargetMoniker");
-                        var runtimeIdentifier = msBuildProject.GetPropertyValue("RuntimeIdentifier");
-
-                        var nugetTarget = lockFile.GetTarget(NuGetFramework.Parse(nuGetTargetMoniker), runtimeIdentifier);
-
-                        // Compute the hierarchy of packages.
-                        // Keys are packages and values are packages which depend on that package.
-                        var nugetDependants = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-                        foreach (var nugetLibrary in nugetTarget.Libraries)
+                    var projectAssetsFileFullPath = Path.GetFullPath(Path.Combine(projectDirectory, projectAssetsFile));
+                    var projectAssetsFileRelativePath = TryMakeRelative(arguments.Root, projectAssetsFileFullPath);
+                    if (!File.Exists(projectAssetsFileFullPath))
+                    {
+                        if (arguments.RestoreIfNeeded)
                         {
-                            var packageId = nugetLibrary.Name;
-                            foreach (var dependency in nugetLibrary.Dependencies)
-                            {
-                                if (!nugetDependants.TryGetValue(dependency.Id, out var parents))
-                                {
-                                    parents = new List<string>();
-                                    nugetDependants.Add(dependency.Id, parents);
-                                }
+                            logger.LogDebug($"ProjectAssetsFile {projectAssetsFileRelativePath} did not exist. Restoring {relativeProjectFile}...");
 
-                                parents.Add(packageId);
+                            // Need to set this manually to get the restore to work in VS (eg. unit tests)
+                            // See: https://github.com/daveaglick/Buildalyzer/issues/60
+                            projectAnalyzer.SetGlobalProperty("MSBuildToolsPath32", msBuildProject.GetPropertyValue("MSBuildToolsPath"));
+
+                            var analyzerResult = projectAnalyzer.Build(buildEnvironment.WithTargetsToBuild("Restore"));
+                            if (!analyzerResult.OverallSuccess)
+                            {
+                                logger.LogError($"Project failed to restore: {relativeProjectFile}");
+                                return null;
                             }
                         }
-
-                        // Get the transitive closure of assemblies included by each package
-                        foreach (var nugetLibrary in nugetTarget.Libraries)
+                        else
                         {
-                            var nugetLibraryAssemblies = nugetLibrary.CompileTimeAssemblies
-                                .Select(item => item.Path)
-                                .Where(path => !path.EndsWith("_._", StringComparison.Ordinal)) // Ignore special packages
-                                .Select(path =>
-                                {
-                                    var packageFolderRelativePath = Path.Combine(nugetLibrary.Name, nugetLibrary.Version.ToNormalizedString(), path);
-                                    var fullPath = packageFolders
-                                        .Select(packageFolder => Path.Combine(packageFolder, packageFolderRelativePath))
-                                        .First(File.Exists);
-                                    return System.Reflection.AssemblyName.GetAssemblyName(fullPath).Name;
-                                })
-                                .ToList();
+                            // Can't analyze this project since it hasn't been restored
+                            logger.LogError($"ProjectAssetsFile {projectAssetsFileRelativePath} did not exist. Ensure you've previously built it, or set the -RestoreIfNeeded flag. Project: {relativeProjectFile}");
+                            return null;
+                        }
+                    }
 
-                            // Walk up to add assemblies to all packages which directly or indirectly depend on this one.
-                            var seenDependants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                            var queue = new Queue<string>();
-                            queue.Enqueue(nugetLibrary.Name);
-                            while (queue.Count > 0)
+                    var lockFile = LockFileUtilities.GetLockFile(projectAssetsFileFullPath, NullLogger.Instance);
+                    if (lockFile == null)
+                    {
+                        logger.LogError($"{projectAssetsFileRelativePath} is not a valid assets file");
+                        return null;
+                    }
+
+                    var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
+
+                    var nuGetTargetMoniker = msBuildProject.GetPropertyValue("NuGetTargetMoniker");
+                    var runtimeIdentifier = msBuildProject.GetPropertyValue("RuntimeIdentifier");
+
+                    var nugetTarget = lockFile.GetTarget(NuGetFramework.Parse(nuGetTargetMoniker), runtimeIdentifier);
+
+                    // Compute the hierarchy of packages.
+                    // Keys are packages and values are packages which depend on that package.
+                    var nugetDependants = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var nugetLibrary in nugetTarget.Libraries)
+                    {
+                        var packageId = nugetLibrary.Name;
+                        foreach (var dependency in nugetLibrary.Dependencies)
+                        {
+                            if (!nugetDependants.TryGetValue(dependency.Id, out var parents))
                             {
-                                var packageId = queue.Dequeue();
+                                parents = new List<string>();
+                                nugetDependants.Add(dependency.Id, parents);
+                            }
 
-                                if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                            parents.Add(packageId);
+                        }
+                    }
+
+                    // Get the transitive closure of assemblies included by each package
+                    foreach (var nugetLibrary in nugetTarget.Libraries)
+                    {
+                        var nugetLibraryAssemblies = nugetLibrary.CompileTimeAssemblies
+                            .Select(item => item.Path)
+                            .Where(path => !path.EndsWith("_._", StringComparison.Ordinal)) // Ignore special packages
+                            .Select(path =>
+                            {
+                                var packageFolderRelativePath = Path.Combine(nugetLibrary.Name, nugetLibrary.Version.ToNormalizedString(), path);
+                                var fullPath = packageFolders
+                                    .Select(packageFolder => Path.Combine(packageFolder, packageFolderRelativePath))
+                                    .First(File.Exists);
+                                return System.Reflection.AssemblyName.GetAssemblyName(fullPath).Name;
+                            })
+                            .ToList();
+
+                        // Walk up to add assemblies to all packages which directly or indirectly depend on this one.
+                        var seenDependants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        var queue = new Queue<string>();
+                        queue.Enqueue(nugetLibrary.Name);
+                        while (queue.Count > 0)
+                        {
+                            var packageId = queue.Dequeue();
+
+                            if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                            {
+                                assemblies = new List<string>();
+                                packageAssemblies.Add(packageId, assemblies);
+                            }
+
+                            assemblies.AddRange(nugetLibraryAssemblies);
+
+                            if (nugetDependants.TryGetValue(packageId, out var dependants))
+                            {
+                                foreach (var dependant in dependants)
                                 {
-                                    assemblies = new List<string>();
-                                    packageAssemblies.Add(packageId, assemblies);
-                                }
-
-                                assemblies.AddRange(nugetLibraryAssemblies);
-
-                                if (nugetDependants.TryGetValue(packageId, out var dependants))
-                                {
-                                    foreach (var dependant in dependants)
+                                    if (seenDependants.Add(dependant))
                                     {
-                                        if (seenDependants.Add(dependant))
-                                        {
-                                            queue.Enqueue(dependant);
-                                        }
+                                        queue.Enqueue(dependant);
                                     }
                                 }
                             }
@@ -234,9 +307,21 @@ namespace ReferenceTrimmer
             }
             catch (Exception e)
             {
-                logger.LogError($"Exception while trying to load: {projectFile}. Exception: {e}");
+                logger.LogError($"Exception while trying to load: {relativeProjectFile}. Exception: {e}");
                 return null;
             }
+        }
+
+        private static string TryMakeRelative(string baseDirectory, string maybeFullPath)
+        {
+            if (baseDirectory[baseDirectory.Length - 1] != Path.DirectorySeparatorChar)
+            {
+                baseDirectory += Path.DirectorySeparatorChar;
+            }
+
+            return maybeFullPath.StartsWith(baseDirectory, StringComparison.OrdinalIgnoreCase)
+                ? maybeFullPath.Substring(baseDirectory.Length)
+                : maybeFullPath;
         }
 
         private static bool NeedsTransitiveAssemblyReferences(MsBuildProject msBuildProject)

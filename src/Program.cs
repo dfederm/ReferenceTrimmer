@@ -59,7 +59,7 @@ namespace ReferenceTrimmer
 
             foreach (var projectFile in projectFiles)
             {
-                var project = Project.GetProject(manager, buildEnvironment, logger, projectFile);
+                var project = Project.GetProject(manager, buildEnvironment, arguments, logger, projectFile);
                 if (project == null)
                 {
                     continue;
@@ -109,7 +109,7 @@ namespace ReferenceTrimmer
                 Layout = @"[${date:format=HH\:mm\:ss.fff}] ${message}",
             };
             config.AddTarget("console", consoleTarget);
-            config.LoggingRules.Add(new LoggingRule("*", LogLevel.Info, consoleTarget));
+            config.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, consoleTarget));
 
             var fileTarget = new FileTarget
             {
@@ -150,7 +150,7 @@ namespace ReferenceTrimmer
                 ? arguments.RoslynTargetsPath
                 : Path.Combine(toolsPath, "Roslyn");
 
-            return new BuildEnvironment(true, new[] { "Compile" }, msBuildExePath, extensionsPath, sdksPath, roslynTargetsPath);
+            return new BuildEnvironment(true, new[] { "Unused" }, msBuildExePath, extensionsPath, sdksPath, roslynTargetsPath);
         }
     }
 }

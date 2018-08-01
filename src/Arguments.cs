@@ -11,6 +11,12 @@ namespace ReferenceTrimmer
         [Option('r', "root", Required = false, HelpText = "Root to start searching for projects. Defaults to the current working directory.")]
         public string Root { get; set; }
 
+        [Option("compile", Required = false)]
+        public bool CompileIfNeeded { get; set; }
+
+        [Option("restore", Required = false)]
+        public bool RestoreIfNeeded { get; set; }
+
         [Option('d', "debug", Required = false, Hidden = true)]
         public bool Debug { get; set; }
 
