@@ -11,14 +11,17 @@ namespace ReferenceTrimmer
         [Option('r', "root", Required = false, HelpText = "Root to start searching for projects. Defaults to the current working directory.")]
         public string Root { get; set; }
 
-        [Option("compile", Required = false)]
+        [Option("compile", Required = false, HelpText = "Compile a project if its intermediate assembly doesn't exist.")]
         public bool CompileIfNeeded { get; set; }
 
-        [Option("restore", Required = false)]
+        [Option("restore", Required = false, HelpText = "Restore a project if its assets file doesn't exist and is needed to for PackageReference analysis.")]
         public bool RestoreIfNeeded { get; set; }
 
         [Option('d', "debug", Required = false, Hidden = true)]
         public bool Debug { get; set; }
+
+        [Option('b', "binlog", Required = false, HelpText = "Creates a binlog if a Compile or Restore is needed. This can help with debugging failures.")]
+        public bool UseBinaryLoogger { get; set; }
 
         [Option('t', "toolspath", Required = false, HelpText = "Overrides the MsBuild tools path")]
         public string ToolsPath { get; set; }

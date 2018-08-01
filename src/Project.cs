@@ -110,7 +110,12 @@ namespace ReferenceTrimmer
                         // See: https://github.com/daveaglick/Buildalyzer/issues/60
                         projectAnalyzer.SetGlobalProperty("MSBuildToolsPath32", msBuildProject.GetPropertyValue("MSBuildToolsPath"));
 
-                        projectAnalyzer.AddBinaryLogger();
+                        // To help debugging, although only the compile will be logged, not the restore, as it's ovewritten.
+                        // See: https://github.com/daveaglick/Buildalyzer/issues/66
+                        if (arguments.UseBinaryLoogger)
+                        {
+                            projectAnalyzer.AddBinaryLogger();
+                        }
 
                         var analyzerResult = projectAnalyzer.Build(compileBuildEnvironment);
                         if (!analyzerResult.OverallSuccess)
@@ -200,6 +205,12 @@ namespace ReferenceTrimmer
                             // Need to set this manually to get the restore to work in VS (eg. unit tests)
                             // See: https://github.com/daveaglick/Buildalyzer/issues/60
                             projectAnalyzer.SetGlobalProperty("MSBuildToolsPath32", msBuildProject.GetPropertyValue("MSBuildToolsPath"));
+
+                            // To help debugging
+                            if (arguments.UseBinaryLoogger)
+                            {
+                                projectAnalyzer.AddBinaryLogger();
+                            }
 
                             var analyzerResult = projectAnalyzer.Build(buildEnvironment.WithTargetsToBuild("Restore"));
                             if (!analyzerResult.OverallSuccess)
