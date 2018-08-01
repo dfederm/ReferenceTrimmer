@@ -59,7 +59,7 @@ namespace ReferenceTrimmer
 
             foreach (var projectFile in projectFiles)
             {
-                var project = Project.GetProject(manager, buildEnvironment, logger, projectFile, arguments.MsBuildBinlog);
+                var project = Project.GetProject(manager, buildEnvironment, logger, projectFile);
                 if (project == null)
                 {
                     continue;

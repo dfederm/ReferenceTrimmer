@@ -45,12 +45,11 @@ namespace ReferenceTrimmer
             AnalyzerManager manager,
             BuildEnvironment buildEnvironment,
             ILogger logger,
-            string projectFile,
-            bool useBinlog)
+            string projectFile)
         {
             if (!Projects.TryGetValue(projectFile, out var project))
             {
-                project = Create(manager, buildEnvironment, logger, projectFile, useBinlog);
+                project = Create(manager, buildEnvironment, logger, projectFile);
                 Projects.Add(projectFile, project);
             }
 
@@ -61,8 +60,7 @@ namespace ReferenceTrimmer
             AnalyzerManager analyzerManager,
             BuildEnvironment buildEnvironment,
             ILogger logger,
-            string projectFile,
-            bool useBinlog)
+            string projectFile)
         {
             try
             {
@@ -126,7 +124,7 @@ namespace ReferenceTrimmer
                 var projectReferences = msBuildProject
                     .GetItems("ProjectReference")
                     .Select(reference => new ProjectReference(
-                        GetProject(analyzerManager, buildEnvironment, logger, Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude)), useBinlog),
+                        GetProject(analyzerManager, buildEnvironment, logger, Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude))),
                         reference.UnevaluatedInclude))
                     .Where(projectReference => projectReference.Project != null)
                     .ToList();
