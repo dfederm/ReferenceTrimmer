@@ -286,14 +286,19 @@ namespace ReferenceTrimmer
                         {
                             var packageId = queue.Dequeue();
 
-                            if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                            // Add this package's assemblies, if there are any
+                            if (nugetLibraryAssemblies.Count > 0)
                             {
-                                assemblies = new List<string>();
-                                packageAssemblies.Add(packageId, assemblies);
+                                if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                                {
+                                    assemblies = new List<string>();
+                                    packageAssemblies.Add(packageId, assemblies);
+                                }
+
+                                assemblies.AddRange(nugetLibraryAssemblies);
                             }
 
-                            assemblies.AddRange(nugetLibraryAssemblies);
-
+                            // Recurse though dependants
                             if (nugetDependants.TryGetValue(packageId, out var dependants))
                             {
                                 foreach (var dependant in dependants)
