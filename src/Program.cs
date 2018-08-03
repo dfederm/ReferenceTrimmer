@@ -52,8 +52,12 @@ namespace ReferenceTrimmer
                 Debugger.Break();
             }
 
-            var root = arguments.Root ?? Directory.GetCurrentDirectory();
-            var projectFiles = Directory.EnumerateFiles(root, "*.*proj", SearchOption.AllDirectories);
+            // Normalize the provided root param
+            arguments.Root = arguments.Root == null
+                ? Directory.GetCurrentDirectory()
+                : Path.GetFullPath(arguments.Root);
+
+            var projectFiles = Directory.EnumerateFiles(arguments.Root, "*.*proj", SearchOption.AllDirectories);
             var manager = new AnalyzerManager();
             var buildEnvironment = CreateBuildEnvironment(arguments);
 
@@ -65,7 +69,7 @@ namespace ReferenceTrimmer
                     continue;
                 }
 
-                var relativeProjectFile = projectFile.Substring(root.Length + 1);
+                var relativeProjectFile = projectFile.Substring(arguments.Root.Length + 1);
 
                 foreach (var reference in project.References)
                 {

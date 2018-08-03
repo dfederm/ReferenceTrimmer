@@ -240,11 +240,14 @@ namespace ReferenceTrimmer
                     var runtimeIdentifier = msBuildProject.GetPropertyValue("RuntimeIdentifier");
 
                     var nugetTarget = lockFile.GetTarget(NuGetFramework.Parse(nuGetTargetMoniker), runtimeIdentifier);
+                    var nugetLibraries = nugetTarget.Libraries
+                        .Where(nugetLibrary => nugetLibrary.Type.Equals("Package", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
 
                     // Compute the hierarchy of packages.
                     // Keys are packages and values are packages which depend on that package.
                     var nugetDependants = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var nugetLibrary in nugetTarget.Libraries)
+                    foreach (var nugetLibrary in nugetLibraries)
                     {
                         var packageId = nugetLibrary.Name;
                         foreach (var dependency in nugetLibrary.Dependencies)
@@ -260,7 +263,7 @@ namespace ReferenceTrimmer
                     }
 
                     // Get the transitive closure of assemblies included by each package
-                    foreach (var nugetLibrary in nugetTarget.Libraries)
+                    foreach (var nugetLibrary in nugetLibraries)
                     {
                         var nugetLibraryAssemblies = nugetLibrary.CompileTimeAssemblies
                             .Select(item => item.Path)
