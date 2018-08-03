@@ -112,7 +112,7 @@ namespace ReferenceTrimmer
 
                         // To help debugging, although only the compile will be logged, not the restore, as it's ovewritten.
                         // See: https://github.com/daveaglick/Buildalyzer/issues/66
-                        if (arguments.UseBinaryLoogger)
+                        if (arguments.UseBinaryLogger)
                         {
                             projectAnalyzer.AddBinaryLogger();
                         }
@@ -207,7 +207,7 @@ namespace ReferenceTrimmer
                             projectAnalyzer.SetGlobalProperty("MSBuildToolsPath32", msBuildProject.GetPropertyValue("MSBuildToolsPath"));
 
                             // To help debugging
-                            if (arguments.UseBinaryLoogger)
+                            if (arguments.UseBinaryLogger)
                             {
                                 projectAnalyzer.AddBinaryLogger();
                             }

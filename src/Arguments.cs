@@ -21,7 +21,7 @@ namespace ReferenceTrimmer
         public bool Debug { get; set; }
 
         [Option('b', "binlog", Required = false, HelpText = "Creates a binlog if a Compile or Restore is needed. This can help with debugging failures.")]
-        public bool UseBinaryLoogger { get; set; }
+        public bool UseBinaryLogger { get; set; }
 
         [Option('t', "toolspath", Required = false, HelpText = "Overrides the MsBuild tools path")]
         public string ToolsPath { get; set; }

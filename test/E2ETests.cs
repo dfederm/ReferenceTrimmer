@@ -205,7 +205,7 @@ Actual Logs:
             arguments.Root = root;
 
             // To help with UT debugging
-            arguments.UseBinaryLoogger = true;
+            arguments.UseBinaryLogger = true;
 
             var loggerFactory = new LoggerFactory();
             var mockLoggerProvider = new MockLoggerProvider();
