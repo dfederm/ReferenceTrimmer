@@ -6,24 +6,20 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)\build\CodeAnalysis.ruleset</CodeAnalysisRuleSet>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Using a the latest Roslyn compiler -->
-    <PackageReference Include="Microsoft.Net.Compilers" Version="2.8.2" />
+    <!-- Using a newer compiler than what comes with MSBuild -->
+    <PackageReference Include="Microsoft.Net.Compilers" Version="2.9.0" IncludeAssets="Analyzers;Build" PrivateAssets="All" />
 
     <!-- Analyzers -->
-    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.6.2-beta1">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="StyleCop.Analyzers" Version="1.1.0-beta008">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.6.2" IncludeAssets="Analyzers;Build" PrivateAssets="All" />
+    <PackageReference Include="StyleCop.Analyzers" Version="1.1.0-beta009" IncludeAssets="Analyzers;Build" PrivateAssets="All" />
   </ItemGroup>
-
   <ItemGroup>
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)\build\stylecop.json">
       <Visible>false</Visible>

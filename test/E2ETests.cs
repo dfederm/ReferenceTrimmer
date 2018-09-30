@@ -8,15 +8,26 @@ namespace ReferenceTrimmer.Tests
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
-    using Buildalyzer;
+    using Microsoft.Build.Locator;
     using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
-    public class E2ETests
+    public sealed class E2ETests
     {
+        private static string msBuildPath;
+
         // ReSharper disable once MemberCanBePrivate.Global
         public TestContext TestContext { get; set; }
+
+        [AssemblyInitialize]
+#pragma warning disable CA1801 // Review unused parameters - [AssemblyInitialize] requires the param be there.
+        public static void AssemblyInit(TestContext context)
+#pragma warning restore CA1801 // Review unused parameters
+        {
+            var visualStudioInstance = MSBuildLocator.RegisterDefaults();
+            msBuildPath = Path.Combine(visualStudioInstance.MSBuildPath, "MSBuild.exe");
+        }
 
         [ClassInitialize]
         public static void ClassInitialize(TestContext testContext)
@@ -33,8 +44,9 @@ namespace ReferenceTrimmer.Tests
             var actualLogs = this.RunTest();
             var expectedLogs = new[]
             {
-                @"Assembly Dependency\obj\Debug\net461\Dependency.dll did not exist. Compiling Dependency\Dependency.csproj...",
-                @"Assembly Library\obj\Debug\net461\Library.dll did not exist. Compiling Library\Library.csproj...",
+                @"Binary logging enabled and will be written to msbuild.binlog",
+                @"Assembly Dependency\obj\Debug\net461\Dependency.dll does not exist. Compiling Dependency\Dependency.csproj...",
+                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
             };
             AssertLogs(expectedLogs, actualLogs);
         }
@@ -45,8 +57,9 @@ namespace ReferenceTrimmer.Tests
             var actualLogs = this.RunTest();
             var expectedLogs = new[]
             {
-                @"Assembly Dependency\obj\Debug\net461\Dependency.dll did not exist. Compiling Dependency\Dependency.csproj...",
-                @"Assembly Library\obj\Debug\net461\Library.dll did not exist. Compiling Library\Library.csproj...",
+                @"Binary logging enabled and will be written to msbuild.binlog",
+                @"Assembly Dependency\obj\Debug\net461\Dependency.dll does not exist. Compiling Dependency\Dependency.csproj...",
+                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
                 @"ProjectReference ..\Dependency\Dependency.csproj can be removed from Library\Library.csproj",
             };
             AssertLogs(expectedLogs, actualLogs);
@@ -57,12 +70,13 @@ namespace ReferenceTrimmer.Tests
         {
             // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
             var buildFile = Path.GetFullPath(Path.Combine("TestData", this.TestContext.TestName, @"Dependency\Dependency.csproj"));
-            RunDotnetCommand(buildFile, "build");
+            RunMSBuild(buildFile);
 
             var actualLogs = this.RunTest();
             var expectedLogs = new[]
             {
-                @"Assembly Library\obj\Debug\net461\Library.dll did not exist. Compiling Library\Library.csproj...",
+                @"Binary logging enabled and will be written to msbuild.binlog",
+                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
             };
             AssertLogs(expectedLogs, actualLogs);
         }
@@ -72,12 +86,13 @@ namespace ReferenceTrimmer.Tests
         {
             // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
             var buildFile = Path.GetFullPath(Path.Combine("TestData", this.TestContext.TestName, @"Dependency\Dependency.csproj"));
-            RunDotnetCommand(buildFile, "build");
+            RunMSBuild(buildFile);
 
             var actualLogs = this.RunTest();
             var expectedLogs = new[]
             {
-                @"Assembly Library\obj\Debug\net461\Library.dll did not exist. Compiling Library\Library.csproj...",
+                @"Binary logging enabled and will be written to msbuild.binlog",
+                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
                 @"Reference Dependency can be removed from Library\Library.csproj",
             };
             AssertLogs(expectedLogs, actualLogs);
@@ -89,7 +104,8 @@ namespace ReferenceTrimmer.Tests
             var actualLogs = this.RunTest();
             var expectedLogs = new[]
             {
-                @"Assembly Library\obj\Debug\net461\Library.dll did not exist. Compiling Library\Library.csproj...",
+                @"Binary logging enabled and will be written to msbuild.binlog",
+                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
             };
             AssertLogs(expectedLogs, actualLogs);
         }
@@ -100,7 +116,8 @@ namespace ReferenceTrimmer.Tests
             var actualLogs = this.RunTest();
             var expectedLogs = new[]
             {
-                @"Assembly WebHost\obj\Debug\netcoreapp2.1\WebHost.dll did not exist. Compiling WebHost\WebHost.csproj...",
+                @"Binary logging enabled and will be written to msbuild.binlog",
+                @"Assembly WebHost\obj\Debug\netcoreapp2.1\WebHost.dll does not exist. Compiling WebHost\WebHost.csproj...",
             };
             AssertLogs(expectedLogs, actualLogs);
         }
@@ -111,7 +128,8 @@ namespace ReferenceTrimmer.Tests
             var actualLogs = this.RunTest();
             var expectedLogs = new[]
             {
-                @"Assembly Library\obj\Debug\net461\Library.dll did not exist. Compiling Library\Library.csproj...",
+                @"Binary logging enabled and will be written to msbuild.binlog",
+                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
                 @"PackageReference Newtonsoft.Json can be removed from Library\Library.csproj",
             };
             AssertLogs(expectedLogs, actualLogs);
@@ -132,15 +150,14 @@ Actual Logs:
             }
         }
 
-        // Using dotnet since it's easier to find than msbuild
-        private static void RunDotnetCommand(string buildFile, string command)
+        private static void RunMSBuild(string buildFile)
         {
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "dotnet",
-                    Arguments = $"{command} {Path.GetFileName(buildFile)}",
+                    FileName = msBuildPath,
+                    Arguments = Path.GetFileName(buildFile),
                     WorkingDirectory = Path.GetDirectoryName(buildFile),
                     UseShellExecute = false,
                     CreateNoWindow = true,
@@ -151,7 +168,7 @@ Actual Logs:
             process.Start();
             process.WaitForExit();
 
-            Assert.AreEqual(0, process.ExitCode, $"{command} of {buildFile} was not successful.\r\nStandardError: {process.StandardError.ReadToEnd()},\r\nStandardOutput: {process.StandardOutput.ReadToEnd()}");
+            Assert.AreEqual(0, process.ExitCode, $"Build of {buildFile} was not successful.\r\nStandardError: {process.StandardError.ReadToEnd()},\r\nStandardOutput: {process.StandardOutput.ReadToEnd()}");
         }
 
         // From: https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories
@@ -202,7 +219,7 @@ Actual Logs:
                 arguments = new Arguments { CompileIfNeeded = true, RestoreIfNeeded = true };
             }
 
-            arguments.Root = root;
+            arguments.Path = root;
 
             // To help with UT debugging
             arguments.UseBinaryLogger = true;
@@ -211,7 +228,16 @@ Actual Logs:
             var mockLoggerProvider = new MockLoggerProvider();
             loggerFactory.AddProvider(mockLoggerProvider);
 
-            Program.Run(arguments, loggerFactory.CreateLogger(this.TestContext.TestName));
+            // MSBuild sets the current working directory, so we need to be sure to restore it after each run.
+            var currentWorkingDirectory = Directory.GetCurrentDirectory();
+            try
+            {
+                Program.Run(arguments, loggerFactory.CreateLogger(this.TestContext.TestName));
+            }
+            finally
+            {
+                Directory.SetCurrentDirectory(currentWorkingDirectory);
+            }
 
             return mockLoggerProvider.LogLines;
         }
@@ -243,7 +269,14 @@ Actual Logs:
 
             public bool IsEnabled(LogLevel logLevel) => true;
 
-            public IDisposable BeginScope<TState>(TState state) => new EmptyDisposable();
+            public IDisposable BeginScope<TState>(TState state) => new MockDisposable();
+        }
+
+        private sealed class MockDisposable : IDisposable
+        {
+            public void Dispose()
+            {
+            }
         }
     }
 }

@@ -6,13 +6,13 @@ namespace ReferenceTrimmer
 {
     internal sealed class ProjectReference
     {
-        public ProjectReference(Project project, string unevaluatedInclude)
+        public ProjectReference(ParsedProject project, string unevaluatedInclude)
         {
             this.Project = project;
             this.UnevaluatedInclude = unevaluatedInclude;
         }
 
-        public Project Project { get; }
+        public ParsedProject Project { get; }
 
         public string UnevaluatedInclude { get; }
     }

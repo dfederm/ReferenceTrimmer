@@ -4,13 +4,14 @@
 
 namespace ReferenceTrimmer
 {
-    using System;
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
-    using Buildalyzer;
-    using Buildalyzer.Environment;
     using CommandLine;
+    using Microsoft.Build.Evaluation;
+    using Microsoft.Build.Execution;
+    using Microsoft.Build.Locator;
+    using Microsoft.Build.Logging;
     using Microsoft.Extensions.Logging;
     using NLog;
     using NLog.Config;
@@ -53,23 +54,48 @@ namespace ReferenceTrimmer
             }
 
             // Normalize the provided root param
-            arguments.Root = arguments.Root == null
+            arguments.Path = arguments.Path == null
                 ? Directory.GetCurrentDirectory()
-                : Path.GetFullPath(arguments.Root);
+                : Path.GetFullPath(arguments.Path);
 
-            var projectFiles = Directory.EnumerateFiles(arguments.Root, "*.*proj", SearchOption.AllDirectories);
-            var manager = new AnalyzerManager();
-            var buildEnvironment = CreateBuildEnvironment(arguments);
+            // Load MSBuild
+            if (MSBuildLocator.CanRegister)
+            {
+                if (string.IsNullOrEmpty(arguments.MSBuildPath))
+                {
+                    MSBuildLocator.RegisterDefaults();
+                }
+                else
+                {
+                    MSBuildLocator.RegisterMSBuildPath(arguments.MSBuildPath);
+                }
+            }
 
+            var buildManager = BuildManager.DefaultBuildManager;
+            var parameters = new BuildParameters(ProjectCollection.GlobalProjectCollection);
+
+            if (arguments.UseBinaryLogger)
+            {
+                const string BinaryLoggerFilename = "msbuild.binlog";
+                logger.LogInformation($"Binary logging enabled and will be written to {BinaryLoggerFilename}");
+                parameters.Loggers = new[]
+                {
+                    new BinaryLogger { Parameters = BinaryLoggerFilename },
+                };
+            }
+
+            buildManager.BeginBuild(parameters);
+
+            var projectFiles = Directory.EnumerateFiles(arguments.Path, "*.*proj", SearchOption.AllDirectories);
             foreach (var projectFile in projectFiles)
             {
-                var project = Project.GetProject(manager, buildEnvironment, arguments, logger, projectFile);
+                var project = ParsedProject.Create(projectFile, arguments, buildManager, logger);
                 if (project == null)
                 {
                     continue;
                 }
 
-                var relativeProjectFile = projectFile.Substring(arguments.Root.Length + 1);
+                var relativeProjectFile = projectFile.Substring(arguments.Path.Length + 1);
 
                 foreach (var reference in project.References)
                 {
@@ -102,6 +128,8 @@ namespace ReferenceTrimmer
                     }
                 }
             }
+
+            buildManager.EndBuild();
         }
 
         private static void ConfigureNLog()
@@ -125,36 +153,6 @@ namespace ReferenceTrimmer
             config.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, fileTarget));
 
             LogManager.Configuration = config;
-        }
-
-        private static BuildEnvironment CreateBuildEnvironment(Arguments arguments)
-        {
-            if (string.IsNullOrEmpty(arguments.ToolsPath)
-                && string.IsNullOrEmpty(arguments.ExtensionsPath)
-                && string.IsNullOrEmpty(arguments.SdksPath)
-                && string.IsNullOrEmpty(arguments.RoslynTargetsPath))
-            {
-                return null;
-            }
-
-            if (string.IsNullOrEmpty(arguments.ToolsPath))
-            {
-                throw new ArgumentException("ToolsPath must be provided when ExtensionsPath, SdksPath, or RoslynTargetsPath are provided");
-            }
-
-            var toolsPath = arguments.ToolsPath;
-            var msBuildExePath = Path.Combine(toolsPath, "MSBuild.exe");
-            var extensionsPath = !string.IsNullOrEmpty(arguments.ExtensionsPath)
-                ? arguments.ExtensionsPath
-                : Path.GetFullPath(Path.Combine(toolsPath, @"..\..\"));
-            var sdksPath = !string.IsNullOrEmpty(arguments.SdksPath)
-                ? arguments.SdksPath
-                : Path.Combine(extensionsPath, "Sdks");
-            var roslynTargetsPath = !string.IsNullOrEmpty(arguments.RoslynTargetsPath)
-                ? arguments.RoslynTargetsPath
-                : Path.Combine(toolsPath, "Roslyn");
-
-            return new BuildEnvironment(true, new[] { "Unused" }, msBuildExePath, extensionsPath, sdksPath, roslynTargetsPath);
         }
     }
 }

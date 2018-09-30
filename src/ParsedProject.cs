@@ -1,4 +1,4 @@
-﻿// <copyright file="Project.cs" company="David Federman">
+﻿// <copyright file="ParsedProject.cs" company="David Federman">
 // Copyright (c) David Federman. All rights reserved.
 // </copyright>
 
@@ -6,24 +6,26 @@ namespace ReferenceTrimmer
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.IO;
     using System.Linq;
     using System.Reflection.Metadata;
     using System.Reflection.PortableExecutable;
-    using Buildalyzer;
-    using Buildalyzer.Environment;
+    using Microsoft.Build.Evaluation;
+    using Microsoft.Build.Execution;
     using Microsoft.Extensions.Logging;
     using NuGet.Common;
     using NuGet.Frameworks;
     using NuGet.ProjectModel;
     using ILogger = Microsoft.Extensions.Logging.ILogger;
-    using MsBuildProject = Microsoft.Build.Evaluation.Project;
 
-    internal sealed class Project
+    internal sealed class ParsedProject
     {
-        private static readonly Dictionary<string, Project> Projects = new Dictionary<string, Project>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, ParsedProject> Projects = new Dictionary<string, ParsedProject>(StringComparer.OrdinalIgnoreCase);
+        private static readonly string[] RestoreTargets = { "Restore" };
+        private static readonly string[] CompileTargets = { "Compile" };
 
-        private Project()
+        private ParsedProject()
         {
         }
 
@@ -41,84 +43,64 @@ namespace ReferenceTrimmer
 
         public Dictionary<string, List<string>> PackageAssemblies { get; private set; }
 
-        public static Project GetProject(
-            AnalyzerManager manager,
-            BuildEnvironment buildEnvironment,
+        public static ParsedProject Create(
+            string projectFile,
             Arguments arguments,
-            ILogger logger,
-            string projectFile)
+            BuildManager buildManager,
+            ILogger logger)
         {
             if (!Projects.TryGetValue(projectFile, out var project))
             {
-                project = Create(manager, buildEnvironment, arguments, logger, projectFile);
+                project = CreateInternal(projectFile, arguments, buildManager, logger);
                 Projects.Add(projectFile, project);
             }
 
             return project;
         }
 
-        private static Project Create(
-            AnalyzerManager analyzerManager,
-            BuildEnvironment buildEnvironment,
+        private static ParsedProject CreateInternal(
+            string projectFile,
             Arguments arguments,
-            ILogger logger,
-            string projectFile)
+            BuildManager buildManager,
+            ILogger logger)
         {
-            var relativeProjectFile = projectFile.Substring(arguments.Root.Length + 1);
+            var relativeProjectFile = projectFile.Substring(arguments.Path.Length + 1);
             try
             {
-                var projectAnalyzer = analyzerManager.GetProject(projectFile);
+                var project = new Project(projectFile);
 
-                if (buildEnvironment == null)
-                {
-                    buildEnvironment = projectAnalyzer.EnvironmentFactory.GetBuildEnvironment();
-                }
-
-                var msBuildProject = projectAnalyzer.Load(buildEnvironment);
-
-                var assemblyFile = msBuildProject.GetItems("IntermediateAssembly").FirstOrDefault()?.EvaluatedInclude;
+                var assemblyFile = project.GetItems("IntermediateAssembly").FirstOrDefault()?.EvaluatedInclude;
                 if (string.IsNullOrEmpty(assemblyFile))
                 {
-                    // Not all projects may produce an assembly
+                    // Not all projects may produce an assembly. Just avoid these sorts of projects.
                     return null;
                 }
 
                 var projectDirectory = Path.GetDirectoryName(projectFile);
                 var assemblyFileFullPath = Path.GetFullPath(Path.Combine(projectDirectory, assemblyFile));
-                var assemblyFileRelativePath = TryMakeRelative(arguments.Root, assemblyFileFullPath);
+                var assemblyFileRelativePath = TryMakeRelative(arguments.Path, assemblyFileFullPath);
+
+                // Compile the assembly if needed
                 if (!File.Exists(assemblyFileFullPath))
                 {
                     if (arguments.CompileIfNeeded)
                     {
-                        logger.LogDebug($"Assembly {assemblyFileRelativePath} did not exist. Compiling {relativeProjectFile}...");
+                        logger.LogDebug($"Assembly {assemblyFileRelativePath} does not exist. Compiling {relativeProjectFile}...");
+                        var projectInstance = project.CreateProjectInstance();
 
-                        // Compile usually requires a restore as well, if a Restore target exists
-                        var targetsToBuild = arguments.RestoreIfNeeded && msBuildProject.Targets.ContainsKey("Restore")
-                            ? new[] { "Restore", "Compile" }
-                            : new[] { "Compile" };
-
-                        // Need to actually compile, not just a design-time build, so copy the BuildEnvironment but set designTime = false
-                        var compileBuildEnvironment = new BuildEnvironment(
-                            false,
-                            targetsToBuild,
-                            buildEnvironment.MsBuildExePath,
-                            buildEnvironment.ExtensionsPath,
-                            buildEnvironment.SDKsPath,
-                            buildEnvironment.RoslynTargetsPath);
-
-                        // Need to set this manually to get the restore to work in VS (eg. unit tests)
-                        // See: https://github.com/daveaglick/Buildalyzer/issues/60
-                        projectAnalyzer.SetGlobalProperty("MSBuildToolsPath32", msBuildProject.GetPropertyValue("MSBuildToolsPath"));
-
-                        // To help debugging, although only the compile will be logged, not the restore, as it's ovewritten.
-                        // See: https://github.com/daveaglick/Buildalyzer/issues/66
-                        if (arguments.UseBinaryLogger)
+                        // Compile usually requires a restore as well
+                        if (arguments.RestoreIfNeeded)
                         {
-                            projectAnalyzer.AddBinaryLogger();
+                            var restoreResult = ExecuteRestore(projectInstance, buildManager);
+                            if (restoreResult.OverallResult != BuildResultCode.Success)
+                            {
+                                logger.LogError($"Project failed to restore: {relativeProjectFile}");
+                                return null;
+                            }
                         }
 
-                        var analyzerResult = projectAnalyzer.Build(compileBuildEnvironment);
-                        if (!analyzerResult.OverallSuccess)
+                        var compileResult = ExecuteCompile(projectInstance, buildManager);
+                        if (compileResult.OverallResult != BuildResultCode.Success)
                         {
                             logger.LogError($"Project failed to compile: {relativeProjectFile}");
                             return null;
@@ -127,7 +109,7 @@ namespace ReferenceTrimmer
                     else
                     {
                         // Can't analyze this project since it hasn't been built
-                        logger.LogError($"Assembly {assemblyFileRelativePath} did not exist. Ensure you've previously built it, or set the -CompileIfNeeded flag. Project: {relativeProjectFile}");
+                        logger.LogError($"Assembly {assemblyFileRelativePath} did not exist. Ensure you've previously built it, or set the --CompileIfNeeded flag. Project: {relativeProjectFile}");
                         return null;
                     }
                 }
@@ -158,27 +140,25 @@ namespace ReferenceTrimmer
                     }
                 }
 
-                var references = msBuildProject
+                var references = project
                     .GetItems("Reference")
                     .Where(reference => !reference.UnevaluatedInclude.Equals("@(_SDKImplicitReference)", StringComparison.OrdinalIgnoreCase))
                     .Select(reference => reference.EvaluatedInclude)
                     .ToList();
 
-                var projectReferences = msBuildProject
+                var projectReferences = project
                     .GetItems("ProjectReference")
-                    .Select(reference => new ProjectReference(
-                        GetProject(analyzerManager, buildEnvironment, arguments, logger, Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude))),
-                        reference.UnevaluatedInclude))
+                    .Select(reference => new ProjectReference(Create(Path.GetFullPath(Path.Combine(projectDirectory, reference.EvaluatedInclude)), arguments, buildManager, logger), reference.UnevaluatedInclude))
                     .Where(projectReference => projectReference.Project != null)
                     .ToList();
 
-                var packageReferences = msBuildProject
+                var packageReferences = project
                     .GetItems("PackageReference")
                     .Select(reference => reference.EvaluatedInclude)
                     .ToList();
 
                 // Certain project types may require references simply to copy them to the output folder to satisfy transitive dependencies.
-                if (NeedsTransitiveAssemblyReferences(msBuildProject))
+                if (NeedsTransitiveAssemblyReferences(project))
                 {
                     projectReferences.ForEach(projectReference => assemblyReferences.UnionWith(projectReference.Project.AssemblyReferences));
                 }
@@ -187,33 +167,25 @@ namespace ReferenceTrimmer
                 var packageAssemblies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
                 if (packageReferences.Count > 0)
                 {
-                    var projectAssetsFile = msBuildProject.GetPropertyValue("ProjectAssetsFile");
+                    var projectAssetsFile = project.GetPropertyValue("ProjectAssetsFile");
                     if (string.IsNullOrEmpty(projectAssetsFile))
                     {
                         logger.LogError($"Project with PackageReferences missing ProjectAssetsFile property: {relativeProjectFile}");
                         return null;
                     }
 
+                    // TODO: Combine with the restore above.
                     var projectAssetsFileFullPath = Path.GetFullPath(Path.Combine(projectDirectory, projectAssetsFile));
-                    var projectAssetsFileRelativePath = TryMakeRelative(arguments.Root, projectAssetsFileFullPath);
+                    var projectAssetsFileRelativePath = TryMakeRelative(arguments.Path, projectAssetsFileFullPath);
                     if (!File.Exists(projectAssetsFileFullPath))
                     {
                         if (arguments.RestoreIfNeeded)
                         {
                             logger.LogDebug($"ProjectAssetsFile {projectAssetsFileRelativePath} did not exist. Restoring {relativeProjectFile}...");
+                            var projectInstance = project.CreateProjectInstance();
 
-                            // Need to set this manually to get the restore to work in VS (eg. unit tests)
-                            // See: https://github.com/daveaglick/Buildalyzer/issues/60
-                            projectAnalyzer.SetGlobalProperty("MSBuildToolsPath32", msBuildProject.GetPropertyValue("MSBuildToolsPath"));
-
-                            // To help debugging
-                            if (arguments.UseBinaryLogger)
-                            {
-                                projectAnalyzer.AddBinaryLogger();
-                            }
-
-                            var analyzerResult = projectAnalyzer.Build(buildEnvironment.WithTargetsToBuild("Restore"));
-                            if (!analyzerResult.OverallSuccess)
+                            var restoreResult = ExecuteRestore(projectInstance, buildManager);
+                            if (restoreResult.OverallResult != BuildResultCode.Success)
                             {
                                 logger.LogError($"Project failed to restore: {relativeProjectFile}");
                                 return null;
@@ -222,7 +194,7 @@ namespace ReferenceTrimmer
                         else
                         {
                             // Can't analyze this project since it hasn't been restored
-                            logger.LogError($"ProjectAssetsFile {projectAssetsFileRelativePath} did not exist. Ensure you've previously built it, or set the -RestoreIfNeeded flag. Project: {relativeProjectFile}");
+                            logger.LogError($"ProjectAssetsFile {projectAssetsFileRelativePath} did not exist. Ensure you've previously built it, or set the --RestoreIfNeeded flag. Project: {relativeProjectFile}");
                             return null;
                         }
                     }
@@ -236,8 +208,8 @@ namespace ReferenceTrimmer
 
                     var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
 
-                    var nuGetTargetMoniker = msBuildProject.GetPropertyValue("NuGetTargetMoniker");
-                    var runtimeIdentifier = msBuildProject.GetPropertyValue("RuntimeIdentifier");
+                    var nuGetTargetMoniker = project.GetPropertyValue("NuGetTargetMoniker");
+                    var runtimeIdentifier = project.GetPropertyValue("RuntimeIdentifier");
 
                     var nugetTarget = lockFile.GetTarget(NuGetFramework.Parse(nuGetTargetMoniker), runtimeIdentifier);
                     var nugetLibraries = nugetTarget.Libraries
@@ -313,7 +285,7 @@ namespace ReferenceTrimmer
                     }
                 }
 
-                return new Project
+                return new ParsedProject
                 {
                     Name = projectFile,
                     AssemblyName = assemblyName,
@@ -343,9 +315,9 @@ namespace ReferenceTrimmer
                 : maybeFullPath;
         }
 
-        private static bool NeedsTransitiveAssemblyReferences(MsBuildProject msBuildProject)
+        private static bool NeedsTransitiveAssemblyReferences(Project projectInstance)
         {
-            var outputType = msBuildProject.GetPropertyValue("OutputType");
+            var outputType = projectInstance.GetPropertyValue("OutputType");
             if (outputType.Equals("Exe", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
@@ -353,5 +325,37 @@ namespace ReferenceTrimmer
 
             return false;
         }
+
+        // Based on MSBuild.exe's restore logic when using /restore. https://github.com/Microsoft/msbuild/blob/master/src/MSBuild/XMake.cs#L1242
+        private static BuildResult ExecuteRestore(ProjectInstance projectInstance, BuildManager buildManager)
+        {
+            const string UniqueProperty = "MSBuildRestoreSessionId";
+
+            // Set a property with a random value to ensure that restore happens under a different evaluation context
+            // If the evaluation context is not different, then projects won't be re-evaluated after restore
+            projectInstance.SetProperty(UniqueProperty, Guid.NewGuid().ToString("D", CultureInfo.InvariantCulture));
+
+            // Create a new request with a Restore target only and specify:
+            //  - BuildRequestDataFlags.ClearCachesAfterBuild to ensure the projects will be reloaded from disk for subsequent builds
+            //  - BuildRequestDataFlags.SkipNonexistentTargets to ignore missing targets since Restore does not require that all targets exist
+            //  - BuildRequestDataFlags.IgnoreMissingEmptyAndInvalidImports to ignore imports that don't exist, are empty, or are invalid because restore might
+            //     make available an import that doesn't exist yet and the <Import /> might be missing a condition.
+            var request = new BuildRequestData(
+                projectInstance,
+                targetsToBuild: RestoreTargets,
+                hostServices: null,
+                flags: BuildRequestDataFlags.ClearCachesAfterBuild | BuildRequestDataFlags.SkipNonexistentTargets | BuildRequestDataFlags.IgnoreMissingEmptyAndInvalidImports);
+
+            var result = ExecuteBuild(buildManager, request);
+
+            // Revert the property
+            projectInstance.RemoveProperty(UniqueProperty);
+
+            return result;
+        }
+
+        private static BuildResult ExecuteCompile(ProjectInstance projectInstance, BuildManager buildManager) => ExecuteBuild(buildManager, new BuildRequestData(projectInstance, CompileTargets));
+
+        private static BuildResult ExecuteBuild(BuildManager buildManager, BuildRequestData request) => buildManager.PendBuildRequest(request).Execute();
     }
 }
