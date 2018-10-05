@@ -2,9 +2,17 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net461</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <BeforePack>AddDependencyContentForPackaging</BeforePack>
+    <!-- Nuget package metadata -->
+    <Version>2.0.0</Version>
     <Authors>David Federman</Authors>
-    <!-- Overriden in the publish script -->
-    <AssemblyVersion>0.0.0</AssemblyVersion>
+    <PackageLicenseUrl>https://github.com/dfederm/ReferenceTrimmer/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/dfederm/ReferenceTrimmer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dfederm/ReferenceTrimmer.git</RepositoryUrl>
+    <IsTool>true</IsTool>
+    <DevelopmentDependency>True</DevelopmentDependency>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.3.0" />
@@ -15,4 +23,27 @@
     <PackageReference Include="NuGet.ProjectModel" Version="4.8.0" />
     <PackageReference Include="System.Reflection.Metadata" Version="1.6.0" />
   </ItemGroup>
+  <!--
+    Usually Nuget package don't directly contain their dependencies. This is a tools package though, so all runtime dependnecies need to be packed with the tool.
+  -->
+  <Target Name="AddDependencyContentForPackaging">
+    <ItemGroup>
+      <None Include="$(OutDir)\*.dll">
+        <PackagePath>tools</PackagePath>
+        <Pack>true</Pack>
+      </None>
+      <None Include="$(OutDir)\*.config">
+        <PackagePath>tools</PackagePath>
+        <Pack>true</Pack>
+      </None>
+    </ItemGroup>
+  </Target>
+  <!--
+    Because all dependencies are packaged with this package, none of the PackageReferences need to be declared as package dependencies.
+  -->
+  <ItemDefinitionGroup>
+    <PackageReference>
+      <PrivateAssets>All</PrivateAssets>
+    </PackageReference>
+  </ItemDefinitionGroup>
 </Project>
