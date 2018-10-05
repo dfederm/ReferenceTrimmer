@@ -2,27 +2,23 @@
 // Copyright (c) David Federman. All rights reserved.
 // </copyright>
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ReferenceTrimmer.Tests")]
+
 namespace ReferenceTrimmer
 {
     using System.Diagnostics;
-    using System.IO;
-    using System.Linq;
     using CommandLine;
-    using Microsoft.Build.Evaluation;
-    using Microsoft.Build.Execution;
     using Microsoft.Build.Locator;
-    using Microsoft.Build.Logging;
     using Microsoft.Extensions.Logging;
     using NLog;
     using NLog.Config;
     using NLog.Extensions.Logging;
     using NLog.Targets;
-    using ILogger = Microsoft.Extensions.Logging.ILogger;
     using LogLevel = NLog.LogLevel;
 
-    public static class Program
+    internal static class Program
     {
-        public static void Main(string[] args)
+        private static void Main(string[] args)
         {
             var loggerFactory = new LoggerFactory()
                 .AddNLog();
@@ -31,10 +27,31 @@ namespace ReferenceTrimmer
             var logger = loggerFactory.CreateLogger("ReferenceTrimmer");
 
             Parser.Default.ParseArguments<Arguments>(args)
-                .WithParsed(options =>
+                .WithParsed(arguments =>
                 {
                     logger.LogInformation("Full logs can be found in ReferenceTrimmer.log");
-                    Run(options, logger);
+
+                    if (arguments.Debug)
+                    {
+                        Debugger.Launch();
+                        Debugger.Break();
+                    }
+
+                    // Load MSBuild
+                    if (MSBuildLocator.CanRegister)
+                    {
+                        if (string.IsNullOrEmpty(arguments.MSBuildPath))
+                        {
+                            MSBuildLocator.RegisterDefaults();
+                        }
+                        else
+                        {
+                            MSBuildLocator.RegisterMSBuildPath(arguments.MSBuildPath);
+                        }
+                    }
+
+                    // ReferenceTrimmer needs to be a separate class to avoid the MSBuild assemblies getting loaded (and failing) before MSBuildLocator gets a chance to set things up.
+                    ReferenceTrimmer.Run(arguments, logger);
                 })
                 .WithNotParsed(errors =>
                 {
@@ -43,93 +60,6 @@ namespace ReferenceTrimmer
                         logger.LogError(error.ToString());
                     }
                 });
-        }
-
-        public static void Run(Arguments arguments, ILogger logger)
-        {
-            if (arguments.Debug)
-            {
-                Debugger.Launch();
-                Debugger.Break();
-            }
-
-            // Normalize the provided root param
-            arguments.Path = arguments.Path == null
-                ? Directory.GetCurrentDirectory()
-                : Path.GetFullPath(arguments.Path);
-
-            // Load MSBuild
-            if (MSBuildLocator.CanRegister)
-            {
-                if (string.IsNullOrEmpty(arguments.MSBuildPath))
-                {
-                    MSBuildLocator.RegisterDefaults();
-                }
-                else
-                {
-                    MSBuildLocator.RegisterMSBuildPath(arguments.MSBuildPath);
-                }
-            }
-
-            var buildManager = BuildManager.DefaultBuildManager;
-            var parameters = new BuildParameters(ProjectCollection.GlobalProjectCollection);
-
-            if (arguments.UseBinaryLogger)
-            {
-                const string BinaryLoggerFilename = "msbuild.binlog";
-                logger.LogInformation($"Binary logging enabled and will be written to {BinaryLoggerFilename}");
-                parameters.Loggers = new[]
-                {
-                    new BinaryLogger { Parameters = BinaryLoggerFilename },
-                };
-            }
-
-            buildManager.BeginBuild(parameters);
-
-            var projectFiles = Directory.EnumerateFiles(arguments.Path, "*.*proj", SearchOption.AllDirectories);
-            foreach (var projectFile in projectFiles)
-            {
-                var project = ParsedProject.Create(projectFile, arguments, buildManager, logger);
-                if (project == null)
-                {
-                    continue;
-                }
-
-                var relativeProjectFile = projectFile.Substring(arguments.Path.Length + 1);
-
-                foreach (var reference in project.References)
-                {
-                    if (!project.AssemblyReferences.Contains(reference))
-                    {
-                        logger.LogInformation($"Reference {reference} can be removed from {relativeProjectFile}");
-                    }
-                }
-
-                foreach (var projectReference in project.ProjectReferences)
-                {
-                    var projectReferenceAssemblyName = projectReference.Project.AssemblyName;
-                    if (!project.AssemblyReferences.Contains(projectReferenceAssemblyName))
-                    {
-                        logger.LogInformation($"ProjectReference {projectReference.UnevaluatedInclude} can be removed from {relativeProjectFile}");
-                    }
-                }
-
-                foreach (var packageReference in project.PackageReferences)
-                {
-                    if (!project.PackageAssemblies.TryGetValue(packageReference, out var packageAssemblies))
-                    {
-                        // These are likely Analyzers, tools, etc.
-                        continue;
-                    }
-
-                    if (!packageAssemblies.Any(packageAssembly => project.AssemblyReferences.Contains(packageAssembly)))
-                    {
-                        logger.LogInformation($"PackageReference {packageReference} can be removed from {relativeProjectFile}");
-                    }
-                }
-            }
-
-            buildManager.EndBuild();
         }
 
         private static void ConfigureNLog()

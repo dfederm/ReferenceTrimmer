@@ -6,7 +6,7 @@ namespace ReferenceTrimmer
 {
     using CommandLine;
 
-    public sealed class Arguments
+    internal sealed class Arguments
     {
         [Option('p', "path", Required = false, HelpText = "Path from which to start searching for projects. Defaults to the current working directory.")]
         public string Path { get; set; }

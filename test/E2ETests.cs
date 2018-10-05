@@ -232,7 +232,7 @@ Actual Logs:
             var currentWorkingDirectory = Directory.GetCurrentDirectory();
             try
             {
-                Program.Run(arguments, loggerFactory.CreateLogger(this.TestContext.TestName));
+                ReferenceTrimmer.Run(arguments, loggerFactory.CreateLogger(this.TestContext.TestName));
             }
             finally
             {
