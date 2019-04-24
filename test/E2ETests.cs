@@ -45,8 +45,8 @@ namespace ReferenceTrimmer.Tests
             var expectedLogs = new[]
             {
                 @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Dependency\obj\Debug\net461\Dependency.dll does not exist. Compiling Dependency\Dependency.csproj...",
-                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
+                @"Assembly Dependency\obj\Debug\net472\Dependency.dll does not exist. Compiling Dependency\Dependency.csproj...",
+                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
             };
             AssertLogs(expectedLogs, actualLogs);
         }
@@ -58,8 +58,8 @@ namespace ReferenceTrimmer.Tests
             var expectedLogs = new[]
             {
                 @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Dependency\obj\Debug\net461\Dependency.dll does not exist. Compiling Dependency\Dependency.csproj...",
-                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
+                @"Assembly Dependency\obj\Debug\net472\Dependency.dll does not exist. Compiling Dependency\Dependency.csproj...",
+                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
                 @"ProjectReference ..\Dependency\Dependency.csproj can be removed from Library\Library.csproj",
             };
             AssertLogs(expectedLogs, actualLogs);
@@ -76,7 +76,7 @@ namespace ReferenceTrimmer.Tests
             var expectedLogs = new[]
             {
                 @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
+                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
             };
             AssertLogs(expectedLogs, actualLogs);
         }
@@ -92,7 +92,7 @@ namespace ReferenceTrimmer.Tests
             var expectedLogs = new[]
             {
                 @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
+                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
                 @"Reference Dependency can be removed from Library\Library.csproj",
             };
             AssertLogs(expectedLogs, actualLogs);
@@ -105,7 +105,7 @@ namespace ReferenceTrimmer.Tests
             var expectedLogs = new[]
             {
                 @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
+                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
             };
             AssertLogs(expectedLogs, actualLogs);
         }
@@ -117,7 +117,7 @@ namespace ReferenceTrimmer.Tests
             var expectedLogs = new[]
             {
                 @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly WebHost\obj\Debug\netcoreapp2.1\WebHost.dll does not exist. Compiling WebHost\WebHost.csproj...",
+                @"Assembly WebHost\obj\Debug\netcoreapp2.2\WebHost.dll does not exist. Compiling WebHost\WebHost.csproj...",
             };
             AssertLogs(expectedLogs, actualLogs);
         }
@@ -129,7 +129,7 @@ namespace ReferenceTrimmer.Tests
             var expectedLogs = new[]
             {
                 @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Library\obj\Debug\net461\Library.dll does not exist. Compiling Library\Library.csproj...",
+                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
                 @"PackageReference Newtonsoft.Json can be removed from Library\Library.csproj",
             };
             AssertLogs(expectedLogs, actualLogs);

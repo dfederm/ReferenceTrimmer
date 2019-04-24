@@ -296,11 +296,13 @@ namespace ReferenceTrimmer
                     PackageAssemblies = packageAssemblies,
                 };
             }
+#pragma warning disable CA1031 // Do not catch general exception types
             catch (Exception e)
             {
                 logger.LogError($"Exception while trying to load: {relativeProjectFile}. Exception: {e}");
                 return null;
             }
+#pragma warning restore CA1031 // Do not catch general exception types
         }
 
         private static string TryMakeRelative(string baseDirectory, string maybeFullPath)
