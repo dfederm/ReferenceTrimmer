@@ -1,29 +1,87 @@
-﻿// <copyright file="Arguments.cs" company="David Federman">
-// Copyright (c) David Federman. All rights reserved.
-// </copyright>
+﻿using System.CommandLine;
+using System.CommandLine.Binding;
 
-namespace ReferenceTrimmer
+namespace ReferenceTrimmer;
+
+internal record Arguments(bool Debug, DirectoryInfo Path, bool CompileIfNeeded, bool RestoreIfNeeded, bool UseBinaryLogger, string? MSBuildPath)
 {
-    using CommandLine;
-
-    internal sealed class Arguments
+    internal static BinderBase<Arguments> AddOptionsAndGetBinder(Command command)
     {
-        [Option('p', "path", Required = false, HelpText = "Path from which to start searching for projects. Defaults to the current working directory.")]
-        public string Path { get; set; }
+        Option<bool>? debugOption =
+#if DEBUG
+    new Option<bool>(
+        aliases: new[] { "--debug" },
+        description: "Path from which to start searching for projects. Defaults to the current working directory.");
+#else
+    null;
+#endif
 
-        [Option('c', "compile", Required = false, HelpText = "Compile a project if its intermediate assembly doesn't exist.")]
-        public bool CompileIfNeeded { get; set; }
+        var pathOption = new Option<DirectoryInfo?>(
+            aliases: new[] { "--path", "-p" },
+            description: "Path from which to start searching for projects. Defaults to the current working directory.");
 
-        [Option('r', "restore", Required = false, HelpText = "Restore a project if its assets file doesn't exist and is needed to for PackageReference analysis.")]
-        public bool RestoreIfNeeded { get; set; }
+        var compileOption = new Option<bool>(
+            aliases: new[] { "--compile", "-c" },
+            description: "Compile a project if its intermediate assembly doesn't exist.");
 
-        [Option('d', "debug", Required = false, Hidden = true)]
-        public bool Debug { get; set; }
+        var restoreOption = new Option<bool>(
+            aliases: new[] { "--restore", "-r" },
+            description: "Restore a project if its assets file doesn't exist and is needed to for PackageReference analysis.");
 
-        [Option('b', "binlog", Required = false, HelpText = "Creates a binlog if a Compile or Restore is needed. This can help with debugging failures.")]
-        public bool UseBinaryLogger { get; set; }
+        var binlogOption = new Option<bool>(
+            aliases: new[] { "--binlog", "-bl" },
+            description: "Creates a binlog if a Compile or Restore is needed. This can help with debugging failures.");
 
-        [Option('m', "msbuildpath", Required = false, HelpText = "Overrides the MsBuild tools path")]
-        public string MSBuildPath { get; set; }
+        var msbuildPathOption = new Option<string?>(
+            aliases: new[] { "--msbuildpath" },
+            description: "Overrides the MsBuild tools path.");
+
+        if (debugOption != null)
+        {
+            command.AddOption(debugOption);
+        }
+
+        command.AddOption(pathOption);
+        command.AddOption(compileOption);
+        command.AddOption(restoreOption);
+        command.AddOption(binlogOption);
+
+        return new ArgumentsBinder(debugOption, pathOption, compileOption, restoreOption, binlogOption, msbuildPathOption);
     }
+
+    private sealed class ArgumentsBinder : BinderBase<Arguments>
+    {
+        private readonly Option<bool>? _debugOption;
+        private readonly Option<DirectoryInfo?> _pathOption;
+        private readonly Option<bool> _compileOption;
+        private readonly Option<bool> _restoreOption;
+        private readonly Option<bool> _binlogOption;
+        private readonly Option<string?> _msbuildPathOption;
+
+        public ArgumentsBinder(
+            Option<bool>? debugOption,
+            Option<DirectoryInfo?> pathOption,
+            Option<bool> compileOption,
+            Option<bool> restoreOption,
+            Option<bool> binlogOption,
+            Option<string?> msbuildPathOption)
+        {
+            _debugOption = debugOption;
+            _pathOption = pathOption;
+            _compileOption = compileOption;
+            _restoreOption = restoreOption;
+            _binlogOption = binlogOption;
+            _msbuildPathOption = msbuildPathOption;
+        }
+
+        protected override Arguments GetBoundValue(BindingContext bindingContext) =>
+            new Arguments(
+                _debugOption == null ? false : bindingContext.ParseResult.GetValueForOption(_debugOption),
+                bindingContext.ParseResult.GetValueForOption(_pathOption) ?? new DirectoryInfo(Directory.GetCurrentDirectory()),
+                bindingContext.ParseResult.GetValueForOption(_compileOption),
+                bindingContext.ParseResult.GetValueForOption(_restoreOption),
+                bindingContext.ParseResult.GetValueForOption(_binlogOption),
+                bindingContext.ParseResult.GetValueForOption(_msbuildPathOption));
+    }
+
 }

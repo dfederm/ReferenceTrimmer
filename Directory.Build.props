@@ -1,29 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project>
 
   <PropertyGroup>
-    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
-  </PropertyGroup>
-
-  <PropertyGroup>
+    <!-- Be strict with warnings -->
     <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)\build\CodeAnalysis.ruleset</CodeAnalysisRuleSet>
-    <Deterministic>true</Deterministic>
+
+    <!-- Enabled the built-in analyzers -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+    <!-- Enable nullable reference types -->
+    <Nullable>Enable</Nullable>
+
+    <!-- Enable implicit usings -->
+    <ImplicitUsings>Enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- Using a newer compiler than what comes with MSBuild -->
-    <PackageReference Include="Microsoft.Net.Compilers" Version="3.1.0-beta1-final" IncludeAssets="Analyzers;Build" PrivateAssets="All" />
-
-    <!-- Analyzers -->
-    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.9.2" IncludeAssets="Analyzers;Build" PrivateAssets="All" />
-    <PackageReference Include="StyleCop.Analyzers" Version="1.1.1-rc.114" IncludeAssets="Analyzers;Build" PrivateAssets="All" />
+  <!-- Packaging -->
+  <PropertyGroup>
+    <Authors>David Federman</Authors>
+    <Copyright>© David Federman. All rights reserved.</Copyright>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <PackageLicensePath>$(MSBuildThisFileDirectory)$(PackageLicenseFile)</PackageLicensePath>
+    <PackageProjectUrl>https://github.com/dfederm/ReferenceTrimmer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dfederm/ReferenceTrimmer.git</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(PackageLicensePath)"
+          Pack="true"
+          PackagePath="$(PackageLicenseFile)"
+          Visible="false" />
   </ItemGroup>
+
+  <!-- Source Link (https://github.com/dotnet/sourcelink) -->
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
   <ItemGroup>
-    <AdditionalFiles Include="$(MSBuildThisFileDirectory)\build\stylecop.json">
-      <Visible>false</Visible>
-    </AdditionalFiles>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- Versioning (https://github.com/dotnet/Nerdbank.GitVersioning) -->
+  <ItemGroup>
+    <PackageReference Include="Nerdbank.GitVersioning" Version="3.5.109" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>
