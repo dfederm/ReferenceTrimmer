@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <UsingTask TaskName="ReferenceTrimmerTask" AssemblyFile="$(ReferenceTrimmerTaskAssembly)" />
+
+  <Target Name="VerifyReferences"
+          Condition="'$(EnableReferenceTrimmer)' != 'false'"
+          AfterTargets="AfterBuild"
+          DependsOnTargets="ResolveProjectReferences">
+    <PropertyGroup>
+       <!-- Certain project types may require references simply to copy them to the output folder to satisfy transitive dependencies. -->
+       <_ReferenceTrimmerNeedsTransitiveAssemblyReferences Condition="'$(OutputType)' == 'Exe'">true</_ReferenceTrimmerNeedsTransitiveAssemblyReferences>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ReferenceTrimmerProjectReferences Include="@(ReferencePath)" Condition="'%(ReferenceSourceTarget)' == 'ProjectReference'" />
+    </ItemGroup>
+
+    <ReferenceTrimmerTask
+      OutputAssembly="$(TargetPath)"
+      NeedsTransitiveAssemblyReferences="$(_ReferenceTrimmerNeedsTransitiveAssemblyReferences)"
+      References="@(Reference)"
+      ProjectReferences="@(_ReferenceTrimmerProjectReferences)"
+      PackageReferences="@(PackageReference)"
+      ProjectAssetsFile="$(ProjectAssetsFile)"
+      NuGetTargetMoniker="$(NuGetTargetMoniker)"
+      RuntimeIdentifier="$(RuntimeIdentifier)"
+      NuGetRestoreTargets="$(NuGetRestoreTargets)" />
+  </Target>
+</Project>

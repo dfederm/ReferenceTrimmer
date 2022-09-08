@@ -1,282 +1,241 @@
-﻿// <copyright file="E2ETests.cs" company="David Federman">
-// Copyright (c) David Federman. All rights reserved.
-// </copyright>
+﻿using System.Diagnostics;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace ReferenceTrimmer.Tests
+namespace ReferenceTrimmer.Tests;
+
+[TestClass]
+public sealed class E2ETests
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.IO;
-    using Microsoft.Build.Locator;
-    using Microsoft.Extensions.Logging;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    private static readonly string MsBuildExePath = GetMsBuildExePath();
 
-    [TestClass]
-    public sealed class E2ETests
+    private static readonly Regex WarningErrorRegex = new(
+        @".+: (warning|error) [\w]*: (?<message>.+) \[.+\]",
+        RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+
+    public TestContext TestContext { get; set; }
+
+    [ClassInitialize]
+    public static void ClassInitialize(TestContext testContext)
     {
-        private static string msBuildPath;
+        string testOutputDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)));
 
-        // ReSharper disable once MemberCanBePrivate.Global
-        public TestContext TestContext { get; set; }
+        // Write some Directory.Build.(props|targets) to avoid unexpected inheritance and add the build files.
+        File.WriteAllText(
+            Path.Combine(testContext.TestRunDirectory, "Directory.Build.props"),
+            $@"<Project>
+  <PropertyGroup>
+    <ReferenceTrimmerTaskAssembly>{testOutputDir}\ReferenceTrimmer\ReferenceTrimmer.dll</ReferenceTrimmerTaskAssembly>
+  </PropertyGroup>
+  <Import Project=""{testOutputDir}\ReferenceTrimmer\build\ReferenceTrimmer.props"" />
+</Project>");
+        File.WriteAllText(
+            Path.Combine(testContext.TestRunDirectory, "Directory.Build.targets"),
+            $@"<Project>
+  <Import Project=""{testOutputDir}\ReferenceTrimmer\build\ReferenceTrimmer.targets"" />
+</Project>");
+    }
 
-        [AssemblyInitialize]
-#pragma warning disable CA1801 // Review unused parameters - [AssemblyInitialize] requires the param be there.
-        public static void AssemblyInit(TestContext context)
-#pragma warning restore CA1801 // Review unused parameters
-        {
-            var visualStudioInstance = MSBuildLocator.RegisterDefaults();
-            msBuildPath = Path.Combine(visualStudioInstance.MSBuildPath, "MSBuild.exe");
-        }
+    [TestMethod]
+    public void UsedProjectReference()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
 
-        [ClassInitialize]
-        public static void ClassInitialize(TestContext testContext)
-        {
-            // Write some Directory.Build.(props|targets) to avoid unexpected inheritance
-            const string Contents = "<Project></Project>";
-            File.WriteAllText(Path.Combine(testContext.TestRunDirectory, "Directory.Build.props"), Contents);
-            File.WriteAllText(Path.Combine(testContext.TestRunDirectory, "Directory.Build.targets"), Contents);
-        }
-
-        [TestMethod]
-        public void UsedProjectReference()
-        {
-            var actualLogs = this.RunTest();
-            var expectedLogs = new[]
+    [TestMethod]
+    public void UnusedProjectReference()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: new[]
             {
-                @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Dependency\obj\Debug\net472\Dependency.dll does not exist. Compiling Dependency\Dependency.csproj...",
-                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
-            };
-            AssertLogs(expectedLogs, actualLogs);
-        }
+                @"ProjectReference ..\Dependency\Dependency.csproj can be removed",
+            });
+    }
 
-        [TestMethod]
-        public void UnusedProjectReference()
-        {
-            var actualLogs = this.RunTest();
-            var expectedLogs = new[]
+    [TestMethod]
+    public void UsedReference()
+    {
+        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        RunMSBuild(
+            projectFile: @"Dependency\Dependency.csproj",
+            expectedWarnings: Array.Empty<string>());
+
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
+
+    [TestMethod]
+    public void UnusedReference()
+    {
+        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        RunMSBuild(
+            projectFile: @"Dependency\Dependency.csproj",
+            expectedWarnings: Array.Empty<string>());
+
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: new[]
             {
-                @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Dependency\obj\Debug\net472\Dependency.dll does not exist. Compiling Dependency\Dependency.csproj...",
-                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
-                @"ProjectReference ..\Dependency\Dependency.csproj can be removed from Library\Library.csproj",
-            };
-            AssertLogs(expectedLogs, actualLogs);
-        }
+                @"Reference Dependency can be removed",
+            });
+    }
 
-        [TestMethod]
-        public void UsedReference()
-        {
-            // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
-            var buildFile = Path.GetFullPath(Path.Combine("TestData", this.TestContext.TestName, @"Dependency\Dependency.csproj"));
-            RunMSBuild(buildFile);
+    [TestMethod]
+    public void UsedPackageReference()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
 
-            var actualLogs = this.RunTest();
-            var expectedLogs = new[]
+    [TestMethod]
+    public void UsedIndirectPackageReference()
+    {
+        RunMSBuild(
+            projectFile: @"WebHost\WebHost.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
+
+    [TestMethod]
+    public void UnusedPackageReference()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: new[]
             {
-                @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
-            };
-            AssertLogs(expectedLogs, actualLogs);
-        }
+                @"PackageReference Newtonsoft.Json can be removed",
+            });
+    }
 
-        [TestMethod]
-        public void UnusedReference()
+    private static string GetMsBuildExePath()
+    {
+        // When running from a developer command prompt, Visual Studio can be found under VSINSTALLDIR
+        string vsInstallDir = Environment.GetEnvironmentVariable("VSINSTALLDIR");
+        if (string.IsNullOrEmpty(vsInstallDir))
         {
-            // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
-            var buildFile = Path.GetFullPath(Path.Combine("TestData", this.TestContext.TestName, @"Dependency\Dependency.csproj"));
-            RunMSBuild(buildFile);
-
-            var actualLogs = this.RunTest();
-            var expectedLogs = new[]
+            // When running Visual Studio can be found under VSAPPIDDIR
+            string vsAppIdeDir = Environment.GetEnvironmentVariable("VSAPPIDDIR");
+            if (!string.IsNullOrEmpty(vsAppIdeDir))
             {
-                @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
-                @"Reference Dependency can be removed from Library\Library.csproj",
-            };
-            AssertLogs(expectedLogs, actualLogs);
-        }
-
-        [TestMethod]
-        public void UsedPackageReference()
-        {
-            var actualLogs = this.RunTest();
-            var expectedLogs = new[]
-            {
-                @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
-            };
-            AssertLogs(expectedLogs, actualLogs);
-        }
-
-        [TestMethod]
-        public void UsedIndirectPackageReference()
-        {
-            var actualLogs = this.RunTest();
-            var expectedLogs = new[]
-            {
-                @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly WebHost\obj\Debug\netcoreapp2.2\WebHost.dll does not exist. Compiling WebHost\WebHost.csproj...",
-            };
-            AssertLogs(expectedLogs, actualLogs);
-        }
-
-        [TestMethod]
-        public void UnusedPackageReference()
-        {
-            var actualLogs = this.RunTest();
-            var expectedLogs = new[]
-            {
-                @"Binary logging enabled and will be written to msbuild.binlog",
-                @"Assembly Library\obj\Debug\net472\Library.dll does not exist. Compiling Library\Library.csproj...",
-                @"PackageReference Newtonsoft.Json can be removed from Library\Library.csproj",
-            };
-            AssertLogs(expectedLogs, actualLogs);
-        }
-
-        private static void AssertLogs(string[] expectedLogs, string[] actualLogs)
-        {
-            var errorMessage = $@"
-Expected Logs:
-{(expectedLogs.Length == 0 ? "<none>" : string.Join(Environment.NewLine, expectedLogs))}
-
-Actual Logs:
-{(actualLogs.Length == 0 ? "<none>" : string.Join(Environment.NewLine, actualLogs))}";
-            Assert.AreEqual(expectedLogs.Length, actualLogs.Length, errorMessage);
-            for (var i = 0; i < actualLogs.Length; i++)
-            {
-                Assert.AreEqual(expectedLogs[i], actualLogs[i]);
+                vsInstallDir = Path.Combine(vsAppIdeDir, @"..\..");
             }
         }
 
-        private static void RunMSBuild(string buildFile)
+        if (string.IsNullOrEmpty(vsInstallDir) || !Directory.Exists(vsInstallDir))
         {
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = msBuildPath,
-                    Arguments = Path.GetFileName(buildFile),
-                    WorkingDirectory = Path.GetDirectoryName(buildFile),
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                },
-            };
-            process.Start();
-            process.WaitForExit();
-
-            Assert.AreEqual(0, process.ExitCode, $"Build of {buildFile} was not successful.\r\nStandardError: {process.StandardError.ReadToEnd()},\r\nStandardOutput: {process.StandardOutput.ReadToEnd()}");
+            throw new InvalidOperationException($"Could not find Visual Studio path for unit tests: {vsInstallDir}");
         }
 
-        // From: https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories
-        private static void DirectoryCopy(string sourceDirName, string destDirName)
+        string msbuildExePath = Path.Combine(vsInstallDir, @"MSBuild\Current\Bin\MSBuild.exe");
+        if (!File.Exists(msbuildExePath))
         {
-            // Get the subdirectories for the specified directory.
-            var dir = new DirectoryInfo(sourceDirName);
+            throw new InvalidOperationException($"Could not find MSBuild.exe path for unit tests: {msbuildExePath}");
+        }
 
-            if (!dir.Exists)
+        return msbuildExePath;
+    }
+
+    // From: https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories
+    private static void DirectoryCopy(string sourceDirName, string destDirName)
+    {
+        // Get the subdirectories for the specified directory.
+        var dir = new DirectoryInfo(sourceDirName);
+
+        if (!dir.Exists)
+        {
+            throw new DirectoryNotFoundException($"Source directory does not exist or could not be found: {sourceDirName}");
+        }
+
+        var subdirs = dir.GetDirectories();
+
+        // If the destination directory doesn't exist, create it.
+        if (!Directory.Exists(destDirName))
+        {
+            Directory.CreateDirectory(destDirName);
+        }
+
+        // Get the files in the directory and copy them to the new location.
+        var files = dir.GetFiles();
+        foreach (var file in files)
+        {
+            var destFile = Path.Combine(destDirName, file.Name);
+            file.CopyTo(destFile, false);
+        }
+
+        // Copy subdirectories and their contents to new location.
+        foreach (var subdir in subdirs)
+        {
+            var destSubdirName = Path.Combine(destDirName, subdir.Name);
+            DirectoryCopy(subdir.FullName, destSubdirName);
+        }
+    }
+
+    private void RunMSBuild(string projectFile, string[] expectedWarnings)
+    {
+        // Copy to the test run dir to avoid cross-test contamination
+        var testDataExecPath = Path.Combine(TestContext.TestRunDirectory, TestContext.TestName);
+        if (!Directory.Exists(testDataExecPath))
+        {
+            var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext.TestName));
+            DirectoryCopy(testDataSourcePath, testDataExecPath);
+        }
+
+        string logDirBase = Path.Combine(testDataExecPath, "Logs");
+        string binlogFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".binlog");
+        string warningsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".warnings.log");
+        string errorsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".errors.log");
+
+        Process process = Process.Start(
+            new ProcessStartInfo
             {
-                throw new DirectoryNotFoundException($"Source directory does not exist or could not be found: {sourceDirName}");
-            }
+                FileName = MsBuildExePath,
+                Arguments = $"\"{projectFile}\" -restore -nologo -nodeReuse:false -noAutoResponse -bl:\"{binlogFilePath}\" -flp1:logfile=\"{errorsFilePath}\";errorsonly -flp2:logfile=\"{warningsFilePath}\";warningsonly",
+                WorkingDirectory = testDataExecPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
 
-            var subdirs = dir.GetDirectories();
+        string stdOut = process.StandardOutput.ReadToEnd();
+        string stdErr = process.StandardError.ReadToEnd();
 
-            // If the destination directory doesn't exist, create it.
-            if (!Directory.Exists(destDirName))
+        process.WaitForExit();
+
+        Assert.AreEqual(0, process.ExitCode, $"Build of {projectFile} was not successful.{Environment.NewLine}StandardError: {stdErr}{Environment.NewLine}StandardOutput: {stdOut}");
+
+        string errors = File.ReadAllText(errorsFilePath);
+        Assert.IsTrue(errors.Length == 0, $"Build of {projectFile} was not successful.{Environment.NewLine}Error log: {errors}");
+
+        string[] actualWarnings = File.ReadAllLines(warningsFilePath)
+            .Select(line =>
             {
-                Directory.CreateDirectory(destDirName);
-            }
+                Match match = WarningErrorRegex.Match(line);
+                return match.Success ? match.Groups["message"].Value : line;
+            })
+            .ToArray();
 
-            // Get the files in the directory and copy them to the new location.
-            var files = dir.GetFiles();
-            foreach (var file in files)
+        bool warningsMatched = expectedWarnings.Length == actualWarnings.Length;
+        if (warningsMatched)
+        {
+            for (var i = 0; i < actualWarnings.Length; i++)
             {
-                var destFile = Path.Combine(destDirName, file.Name);
-                file.CopyTo(destFile, false);
-            }
-
-            // Copy subdirectories and their contents to new location.
-            foreach (var subdir in subdirs)
-            {
-                var destSubdirName = Path.Combine(destDirName, subdir.Name);
-                DirectoryCopy(subdir.FullName, destSubdirName);
+                warningsMatched &= expectedWarnings[i] == actualWarnings[i];
             }
         }
 
-        private string[] RunTest(Arguments arguments = null)
-        {
-            // Copy to the test run dir to avoid cross-test contamination
-            var testPath = Path.GetFullPath(Path.Combine("TestData", this.TestContext.TestName));
-            var root = Path.Combine(this.TestContext.TestRunDirectory, this.TestContext.TestName);
-            DirectoryCopy(testPath, root);
+        Assert.IsTrue(
+            warningsMatched,
+            $@"
+Expected warnings:
+{(expectedWarnings.Length == 0 ? "<none>" : string.Join(Environment.NewLine, expectedWarnings))}
 
-            // Run ReferenceTrimmer and collect the log entries
-            if (arguments == null)
-            {
-                arguments = new Arguments { CompileIfNeeded = true, RestoreIfNeeded = true };
-            }
-
-            arguments.Path = root;
-
-            // To help with UT debugging
-            arguments.UseBinaryLogger = true;
-
-            var loggerFactory = new LoggerFactory();
-            var mockLoggerProvider = new MockLoggerProvider();
-            loggerFactory.AddProvider(mockLoggerProvider);
-
-            // MSBuild sets the current working directory, so we need to be sure to restore it after each run.
-            var currentWorkingDirectory = Directory.GetCurrentDirectory();
-            try
-            {
-                ReferenceTrimmer.Run(arguments, loggerFactory.CreateLogger(this.TestContext.TestName));
-            }
-            finally
-            {
-                Directory.SetCurrentDirectory(currentWorkingDirectory);
-            }
-
-            return mockLoggerProvider.LogLines;
-        }
-
-        private sealed class MockLoggerProvider : ILoggerProvider
-        {
-            private readonly List<string> logLines = new List<string>();
-
-            public string[] LogLines => this.logLines.ToArray();
-
-            public void Dispose()
-            {
-            }
-
-            public ILogger CreateLogger(string categoryName) => new MockLogger(this.logLines);
-        }
-
-        private sealed class MockLogger : ILogger
-        {
-            private readonly List<string> logLines;
-
-            public MockLogger(List<string> logLines)
-            {
-                this.logLines = logLines;
-            }
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter) =>
-                this.logLines.Add(formatter(state, exception));
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public IDisposable BeginScope<TState>(TState state) => new MockDisposable();
-        }
-
-        private sealed class MockDisposable : IDisposable
-        {
-            public void Dispose()
-            {
-            }
-        }
+Actual warnings:
+{(actualWarnings.Length == 0 ? "<none>" : string.Join(Environment.NewLine, actualWarnings))}");
     }
 }
