@@ -8,7 +8,7 @@
 
     <!-- Enabled the built-in analyzers -->
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
-      
+
     <!-- Enable implicit usings -->
     <ImplicitUsings>Enable</ImplicitUsings>
 

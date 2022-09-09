@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -8,7 +9,7 @@ namespace ReferenceTrimmer.Tests;
 [TestClass]
 public sealed class E2ETests
 {
-    private static readonly string MsBuildExePath = GetMsBuildExePath();
+    private static readonly (string ExePath, string Verb) MSBuild = GetMsBuildExeAndVerb();
 
     private static readonly Regex WarningErrorRegex = new(
         @".+: (warning|error) [\w]*: (?<message>.+) \[.+\]",
@@ -19,7 +20,7 @@ public sealed class E2ETests
     [ClassInitialize]
     public static void ClassInitialize(TestContext testContext)
     {
-        string testOutputDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)));
+        string testOutputDir = Path.GetFullPath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
 
         // Write some Directory.Build.(props|targets) to avoid unexpected inheritance and add the build files.
         File.WriteAllText(
@@ -112,32 +113,37 @@ public sealed class E2ETests
             });
     }
 
-    private static string GetMsBuildExePath()
+    private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
     {
-        // When running from a developer command prompt, Visual Studio can be found under VSINSTALLDIR
-        string vsInstallDir = Environment.GetEnvironmentVariable("VSINSTALLDIR");
-        if (string.IsNullOrEmpty(vsInstallDir))
+        // On Windows, try to find Visual Studio
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            // When running Visual Studio can be found under VSAPPIDDIR
-            string vsAppIdeDir = Environment.GetEnvironmentVariable("VSAPPIDDIR");
-            if (!string.IsNullOrEmpty(vsAppIdeDir))
+            // When running from a developer command prompt, Visual Studio can be found under VSINSTALLDIR
+            string vsInstallDir = Environment.GetEnvironmentVariable("VSINSTALLDIR");
+            if (string.IsNullOrEmpty(vsInstallDir))
             {
-                vsInstallDir = Path.Combine(vsAppIdeDir, @"..\..");
+                // When running Visual Studio can be found under VSAPPIDDIR
+                string vsAppIdeDir = Environment.GetEnvironmentVariable("VSAPPIDDIR");
+                if (!string.IsNullOrEmpty(vsAppIdeDir))
+                {
+                    vsInstallDir = Path.Combine(vsAppIdeDir, @"..\..");
+                }
+            }
+
+            if (!string.IsNullOrEmpty(vsInstallDir))
+            {
+                string msbuildExePath = Path.Combine(vsInstallDir, @"MSBuild\Current\Bin\MSBuild.exe");
+                if (!File.Exists(msbuildExePath))
+                {
+                    throw new InvalidOperationException($"Could not find MSBuild.exe path for unit tests: {msbuildExePath}");
+                }
+
+                return (msbuildExePath, string.Empty);
             }
         }
 
-        if (string.IsNullOrEmpty(vsInstallDir) || !Directory.Exists(vsInstallDir))
-        {
-            throw new InvalidOperationException($"Could not find Visual Studio path for unit tests: {vsInstallDir}");
-        }
-
-        string msbuildExePath = Path.Combine(vsInstallDir, @"MSBuild\Current\Bin\MSBuild.exe");
-        if (!File.Exists(msbuildExePath))
-        {
-            throw new InvalidOperationException($"Could not find MSBuild.exe path for unit tests: {msbuildExePath}");
-        }
-
-        return msbuildExePath;
+        // Fall back to just using dotnet. Assume it's on the PATH
+        return ("dotnet", "build");
     }
 
     // From: https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories
@@ -193,8 +199,8 @@ public sealed class E2ETests
         Process process = Process.Start(
             new ProcessStartInfo
             {
-                FileName = MsBuildExePath,
-                Arguments = $"\"{projectFile}\" -restore -nologo -nodeReuse:false -noAutoResponse -bl:\"{binlogFilePath}\" -flp1:logfile=\"{errorsFilePath}\";errorsonly -flp2:logfile=\"{warningsFilePath}\";warningsonly",
+                FileName = MSBuild.ExePath,
+                Arguments = $"{MSBuild.Verb} \"{projectFile}\" -restore -nologo -nodeReuse:false -noAutoResponse -bl:\"{binlogFilePath}\" -flp1:logfile=\"{errorsFilePath}\";errorsonly -flp2:logfile=\"{warningsFilePath}\";warningsonly",
                 WorkingDirectory = testDataExecPath,
                 UseShellExecute = false,
                 CreateNoWindow = true,

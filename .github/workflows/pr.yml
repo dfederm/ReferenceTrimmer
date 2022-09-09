@@ -1,0 +1,49 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    # TODO: Add ubuntu-latest
+    runs-on: windows-latest
+    steps:
+
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Git Versioning requires a non-shallow clone
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v2
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --logger trx --results-directory TestResults --collect:"XPlat Code Coverage"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./TestResults
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: ./TestResults
+        if: ${{ always() }} # Always run this step even on failure
+
+      - name: Pack
+        run: dotnet pack --configuration Release --no-restore --no-build --output ./artifacts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: ./artifacts
