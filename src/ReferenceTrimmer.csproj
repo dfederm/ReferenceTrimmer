@@ -2,7 +2,6 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <BuildOutputTargetFolder>build\</BuildOutputTargetFolder>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <DevelopmentDependency>true</DevelopmentDependency>
     <!-- This contains MSBuild tasks, not a referenced library -->
     <NoWarn>$(NoWarn);NU5128</NoWarn>
