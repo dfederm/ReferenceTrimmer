@@ -19,6 +19,7 @@
   <PropertyGroup>
     <Authors>David Federman</Authors>
     <Copyright>© David Federman. All rights reserved.</Copyright>
+    <Description>Easily identify which dependencies can be removed from an MSBuild project.</Description>
     <PackageProjectUrl>https://github.com/dfederm/ReferenceTrimmer</PackageProjectUrl>
     <RepositoryUrl>https://github.com/dfederm/ReferenceTrimmer.git</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
