@@ -113,6 +113,14 @@ public sealed class E2ETests
             });
     }
 
+    [TestMethod]
+    public void MissingReferenceSourceTarget()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
+
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
     {
         // On Windows, try to find Visual Studio

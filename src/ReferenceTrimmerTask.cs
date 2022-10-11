@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using Microsoft.Build.Framework;
@@ -134,7 +133,7 @@ namespace ReferenceTrimmer
             }
         }
 
-        internal HashSet<string> GetAssemblyReferences()
+        private HashSet<string> GetAssemblyReferences()
         {
             var assemblyReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             using (var stream = File.OpenRead(OutputAssembly))
@@ -161,7 +160,7 @@ namespace ReferenceTrimmer
             return assemblyReferences;
         }
 
-        internal Dictionary<string, List<string>> GetPackageAssemblies()
+        private Dictionary<string, List<string>> GetPackageAssemblies()
         {
             var packageAssemblies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
