@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
 using NuGet.Frameworks;
@@ -42,6 +43,8 @@ namespace ReferenceTrimmer
 
         public string NuGetRestoreTargets { get; set; }
 
+        public ITaskItem[] TargetFrameworkDirectories { get; set; }
+
         public override bool Execute()
         {
             AppDomain.CurrentDomain.AssemblyResolve += ResolveAssembly;
@@ -49,6 +52,7 @@ namespace ReferenceTrimmer
             {
                 HashSet<string> assemblyReferences = GetAssemblyReferences();
                 Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
+                HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
 
                 if (References != null)
                 {
@@ -56,6 +60,14 @@ namespace ReferenceTrimmer
                     {
                         // Ignore implicity defined references (references which are SDK-provided)
                         if (reference.GetMetadata("IsImplicitlyDefined").Equals("true", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        // During the _HandlePackageFileConflicts target (ResolvePackageFileConflicts task), assembly conflicts may be
+                        // resolved with an assembly from the target framework instead of a package. The package may be an indirect dependency,
+                        // so the resulting reference would be unavoidable.
+                        if (targetFrameworkAssemblies.Contains(reference.ItemSpec))
                         {
                             continue;
                         }
@@ -241,6 +253,44 @@ namespace ReferenceTrimmer
             }
 
             return packageAssemblies;
+        }
+
+        internal HashSet<string> GetTargetFrameworkAssemblyNames()
+        {
+            HashSet<string> targetFrameworkAssemblyNames = new();
+
+            // This follows the same logic as FrameworkListReader.
+            // See: https://github.com/dotnet/sdk/blob/main/src/Tasks/Common/ConflictResolution/FrameworkListReader.cs
+            if (TargetFrameworkDirectories != null)
+            {
+                foreach (ITaskItem targetFrameworkDirectory in TargetFrameworkDirectories)
+                {
+                    string frameworkListPath = Path.Combine(targetFrameworkDirectory.ItemSpec, "RedistList", "FrameworkList.xml");
+                    if (!File.Exists(frameworkListPath))
+                    {
+                        continue;
+                    }
+
+                    XDocument frameworkList = XDocument.Load(frameworkListPath);
+                    foreach (XElement file in frameworkList.Root.Elements("File"))
+                    {
+                        string type = file.Attribute("Type")?.Value;
+                        if (type?.Equals("Analyzer", StringComparison.OrdinalIgnoreCase) ?? false)
+                        {
+                            continue;
+                        }
+
+                        string assemblyName = file.Attribute("AssemblyName")?.Value;
+                        if (!string.IsNullOrEmpty(assemblyName))
+                        {
+                            targetFrameworkAssemblyNames.Add(assemblyName);
+                        }
+
+                    }
+                }
+            }
+
+            return targetFrameworkAssemblyNames;
         }
 
         private Assembly ResolveAssembly(object sender, ResolveEventArgs args)

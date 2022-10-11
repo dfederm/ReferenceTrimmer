@@ -121,6 +121,18 @@ public sealed class E2ETests
             expectedWarnings: Array.Empty<string>());
     }
 
+    [TestMethod]
+    public void PlatformPackageConflictResolution()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: new[]
+            {
+                // TODO: These "metapackages" should not be reported.
+                "PackageReference NETStandard.Library can be removed",
+            });
+    }
+
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
     {
         // On Windows, try to find Visual Studio
