@@ -11,7 +11,7 @@
        <_ReferenceTrimmerNeedsTransitiveAssemblyReferences Condition="'$(OutputType)' == 'Exe'">true</_ReferenceTrimmerNeedsTransitiveAssemblyReferences>
     </PropertyGroup>
     <ItemGroup>
-      <_ReferenceTrimmerProjectReferences Include="@(ReferencePath)" Condition="'%(ReferenceSourceTarget)' == 'ProjectReference'" />
+      <_ReferenceTrimmerProjectReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ProjectReference'" />
     </ItemGroup>
 
     <ReferenceTrimmerTask
