@@ -29,6 +29,9 @@ public sealed class E2ETests
   <PropertyGroup>
     <ReferenceTrimmerTaskAssembly>{testOutputDir}\ReferenceTrimmer\ReferenceTrimmer.dll</ReferenceTrimmerTaskAssembly>
   </PropertyGroup>
+  <ItemGroup>
+    <Analyzer Include=""{testOutputDir}\ReferenceTrimmer\ReferenceTrimmerAnalyzer.dll""/>
+  </ItemGroup>
   <Import Project=""{testOutputDir}\ReferenceTrimmer\build\ReferenceTrimmer.props"" />
 </Project>");
         File.WriteAllText(
