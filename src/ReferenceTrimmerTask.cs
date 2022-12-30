@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
