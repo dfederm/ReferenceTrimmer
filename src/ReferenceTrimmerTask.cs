@@ -1,6 +1,4 @@
 ﻿using System.Reflection;
-using System.Reflection.Metadata;
-using System.Reflection.PortableExecutable;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
@@ -29,6 +27,8 @@ namespace ReferenceTrimmer
 
         public bool NeedsTransitiveAssemblyReferences { get; set; }
 
+        public ITaskItem[] UsedReferences { get; set; }
+        
         public ITaskItem[] References { get; set; }
 
         public ITaskItem[] ProjectReferences { get; set; }
@@ -145,32 +145,7 @@ namespace ReferenceTrimmer
             }
         }
 
-        private HashSet<string> GetAssemblyReferences()
-        {
-            var assemblyReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using (var stream = File.OpenRead(OutputAssembly))
-            using (var peReader = new PEReader(stream))
-            {
-                var metadata = peReader.GetMetadataReader(MetadataReaderOptions.ApplyWindowsRuntimeProjections);
-                if (!metadata.IsAssembly)
-                {
-                    Log.LogError($"{OutputAssembly} is not an assembly");
-                    return null;
-                }
-
-                foreach (var assemblyReferenceHandle in metadata.AssemblyReferences)
-                {
-                    AssemblyReference reference = metadata.GetAssemblyReference(assemblyReferenceHandle);
-                    string name = metadata.GetString(reference.Name);
-                    if (!string.IsNullOrEmpty(name))
-                    {
-                        assemblyReferences.Add(name);
-                    }
-                }
-            }
-
-            return assemblyReferences;
-        }
+        private HashSet<string> GetAssemblyReferences() => new HashSet<string>(UsedReferences.Select(usedReference => AssemblyName.GetAssemblyName(usedReference.ItemSpec).Name), StringComparer.OrdinalIgnoreCase);
 
         private Dictionary<string, List<string>> GetPackageAssemblies()
         {
