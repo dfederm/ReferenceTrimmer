@@ -31,6 +31,7 @@ namespace ReferenceTrimmer
 
         public override bool Execute()
         {
+            // System.Diagnostics.Debugger.Launch();
             HashSet<string> assemblyReferences = GetAssemblyReferences();
             Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
             HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
