@@ -10,6 +10,7 @@
   <ItemGroup Condition="'$(EnableReferenceTrimmer)' != 'false'">
     <!-- https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Using%20Additional%20Files.md#in-a-project-file -->
     <AdditionalFiles Include="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)" />
+    <FileWrites Include="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)" />
   </ItemGroup>
 
   <Target Name="DeleteReferenceTrimmerGetUsedAssemblyReferencesFile" Condition="'$(EnableReferenceTrimmer)' != 'false'" BeforeTargets="BeforeBuild" >
@@ -35,7 +36,7 @@
 
     <ReferenceTrimmerTask
       Condition=" '@(UsedReference)' != '' "
-      OutputAssembly="$(TargetPath)"
+      MSBuildProjectFile="$(MSBuildProjectFile)"
       NeedsTransitiveAssemblyReferences="$(_ReferenceTrimmerNeedsTransitiveAssemblyReferences)"
       UsedReferences="@(UsedReference)"
       References="@(Reference)"

@@ -23,7 +23,7 @@ namespace ReferenceTrimmer
         };
 
         [Required]
-        public string OutputAssembly { get; set; }
+        public string MSBuildProjectFile { get; set; }
 
         public bool NeedsTransitiveAssemblyReferences { get; set; }
 
@@ -47,6 +47,7 @@ namespace ReferenceTrimmer
 
         public override bool Execute()
         {
+            // System.Diagnostics.Debugger.Launch();
             HashSet<string> assemblyReferences = GetAssemblyReferences();
             Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
             HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
@@ -99,7 +100,7 @@ namespace ReferenceTrimmer
 
                     if (!assemblyReferences.Contains(referenceAssemblyName))
                     {
-                        Log.LogWarning($"Reference {referenceSpec} can be removed");
+                        LogWarning("Reference {0} can be removed", referenceSpec);
                     }
                 }
             }
@@ -112,7 +113,7 @@ namespace ReferenceTrimmer
                     if (!assemblyReferences.Contains(projectReferenceAssemblyName.Name))
                     {
                         string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
-                        Log.LogWarning($"ProjectReference {referenceProjectFile} can be removed");
+                        LogWarning("ProjectReference {0} can be removed", referenceProjectFile);
                     }
                 }
             }
@@ -129,13 +130,15 @@ namespace ReferenceTrimmer
 
                     if (!packageAssemblies.Any(packageAssembly => assemblyReferences.Contains(packageAssembly)))
                     {
-                        Log.LogWarning($"PackageReference {packageReference} can be removed");
+                        LogWarning("PackageReference {0} can be removed", packageReference);
                     }
                 }
             }
 
             return !Log.HasLoggedErrors;
         }
+
+        private void LogWarning(string message, params object[] messageArgs) => Log.LogWarning(null, null, null, MSBuildProjectFile, 0, 0, 0, 0, message, messageArgs);
 
         private HashSet<string> GetAssemblyReferences() => new HashSet<string>(UsedReferences.Select(usedReference => AssemblyName.GetAssemblyName(usedReference.ItemSpec).Name), StringComparer.OrdinalIgnoreCase);
 
