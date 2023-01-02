@@ -140,7 +140,7 @@ namespace ReferenceTrimmer
 
         private void LogWarning(string message, params object[] messageArgs) => Log.LogWarning(null, null, null, MSBuildProjectFile, 0, 0, 0, 0, message, messageArgs);
 
-        private HashSet<string> GetAssemblyReferences() => new HashSet<string>(UsedReferences.Select(usedReference => AssemblyName.GetAssemblyName(usedReference.ItemSpec).Name), StringComparer.OrdinalIgnoreCase);
+        private HashSet<string> GetAssemblyReferences() => new(UsedReferences.Select(usedReference => AssemblyName.GetAssemblyName(usedReference.ItemSpec).Name), StringComparer.OrdinalIgnoreCase);
 
         private Dictionary<string, List<string>> GetPackageAssemblies()
         {
