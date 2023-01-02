@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace ReferenceTrimmer
 {
-    [DiagnosticAnalyzer(LanguageNames.CSharp)]
+    [DiagnosticAnalyzer(LanguageNames.CSharp, LanguageNames.VisualBasic, LanguageNames.FSharp)]
     public class UsedAssemblyReferencesDumper : DiagnosticAnalyzer
     {
         internal static readonly string Title = "Unused references should be removed";

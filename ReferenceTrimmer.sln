@@ -23,6 +23,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{16768D5E-9
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D49A052F-6C94-4B71-81D4-4D1871858F6D}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "analyzer", "analyzer", "{20D61165-FED7-496A-9F83-AAD2CA32CFA5}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmerAnalyzer", "analyzer\ReferenceTrimmerAnalyzer.csproj", "{2C295A5A-5889-494B-8893-66381B000102}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -37,6 +41,10 @@ Global
 		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2C295A5A-5889-494B-8893-66381B000102}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C295A5A-5889-494B-8893-66381B000102}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C295A5A-5889-494B-8893-66381B000102}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C295A5A-5889-494B-8893-66381B000102}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -44,6 +52,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{D0410117-6DF9-4E70-91BD-312FEDD51299} = {D49A052F-6C94-4B71-81D4-4D1871858F6D}
 		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB} = {16768D5E-9929-45B8-9222-A4A83C40B005}
+        {2C295A5A-5889-494B-8893-66381B000102} = {20D61165-FED7-496A-9F83-AAD2CA32CFA5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {BD73DFDB-4A6B-49B2-B544-7F071454A46A}

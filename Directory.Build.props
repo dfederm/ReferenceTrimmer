@@ -11,6 +11,9 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisMode>Recommended</AnalysisMode>
 
+    <!-- See https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005 -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
     <!-- Enable implicit usings -->
     <ImplicitUsings>Enable</ImplicitUsings>
 

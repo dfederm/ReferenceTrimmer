@@ -47,102 +47,94 @@ namespace ReferenceTrimmer
 
         public override bool Execute()
         {
-            AppDomain.CurrentDomain.AssemblyResolve += ResolveAssembly;
-            try
+            HashSet<string> assemblyReferences = GetAssemblyReferences();
+            Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
+            HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
+
+            if (References != null)
             {
-                HashSet<string> assemblyReferences = GetAssemblyReferences();
-                Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
-                HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
-
-                if (References != null)
+                foreach (ITaskItem reference in References)
                 {
-                    foreach (ITaskItem reference in References)
+                    // Ignore implicity defined references (references which are SDK-provided)
+                    if (reference.GetMetadata("IsImplicitlyDefined").Equals("true", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Ignore implicity defined references (references which are SDK-provided)
-                        if (reference.GetMetadata("IsImplicitlyDefined").Equals("true", StringComparison.OrdinalIgnoreCase))
-                        {
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        // During the _HandlePackageFileConflicts target (ResolvePackageFileConflicts task), assembly conflicts may be
-                        // resolved with an assembly from the target framework instead of a package. The package may be an indirect dependency,
-                        // so the resulting reference would be unavoidable.
-                        if (targetFrameworkAssemblies.Contains(reference.ItemSpec))
-                        {
-                            continue;
-                        }
+                    // During the _HandlePackageFileConflicts target (ResolvePackageFileConflicts task), assembly conflicts may be
+                    // resolved with an assembly from the target framework instead of a package. The package may be an indirect dependency,
+                    // so the resulting reference would be unavoidable.
+                    if (targetFrameworkAssemblies.Contains(reference.ItemSpec))
+                    {
+                        continue;
+                    }
 
-                        // Ignore references from packages. Those as handled later.
-                        if (reference.GetMetadata("NuGetPackageId").Length != 0)
-                        {
-                            continue;
-                        }
+                    // Ignore references from packages. Those as handled later.
+                    if (reference.GetMetadata("NuGetPackageId").Length != 0)
+                    {
+                        continue;
+                    }
 
-                        var referenceSpec = reference.ItemSpec;
-                        var referenceHintPath = reference.GetMetadata("HintPath");
-                        var referenceName = reference.GetMetadata("Name");
+                    var referenceSpec = reference.ItemSpec;
+                    var referenceHintPath = reference.GetMetadata("HintPath");
+                    var referenceName = reference.GetMetadata("Name");
 
-                        string referenceAssemblyName;
+                    string referenceAssemblyName;
 
-                        if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
-                        {
-                            // If a hint path is given and exists, use that assembly's name.
-                            referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).Name;
-                        }
-                        else if (!string.IsNullOrEmpty(referenceName) && File.Exists(referenceSpec))
-                        {
-                            // If a name is given and the spec is an existing file, use that assembly's name.
-                            referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).Name;
-                        }
-                        else
-                        {
-                            // The assembly name is probably just the item spec.
-                            referenceAssemblyName = referenceSpec;
-                        }
+                    if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
+                    {
+                        // If a hint path is given and exists, use that assembly's name.
+                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).Name;
+                    }
+                    else if (!string.IsNullOrEmpty(referenceName) && File.Exists(referenceSpec))
+                    {
+                        // If a name is given and the spec is an existing file, use that assembly's name.
+                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).Name;
+                    }
+                    else
+                    {
+                        // The assembly name is probably just the item spec.
+                        referenceAssemblyName = referenceSpec;
+                    }
 
-                        if (!assemblyReferences.Contains(referenceAssemblyName))
-                        {
-                            Log.LogWarning($"Reference {referenceSpec} can be removed");
-                        }
+                    if (!assemblyReferences.Contains(referenceAssemblyName))
+                    {
+                        Log.LogWarning($"Reference {referenceSpec} can be removed");
                     }
                 }
-
-                if (ProjectReferences != null)
-                {
-                    foreach (ITaskItem projectReference in ProjectReferences)
-                    {
-                        AssemblyName projectReferenceAssemblyName = new(projectReference.GetMetadata("FusionName"));
-                        if (!assemblyReferences.Contains(projectReferenceAssemblyName.Name))
-                        {
-                            string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
-                            Log.LogWarning($"ProjectReference {referenceProjectFile} can be removed");
-                        }
-                    }
-                }
-
-                if (PackageReferences != null)
-                {
-                    foreach (ITaskItem packageReference in PackageReferences)
-                    {
-                        if (!packageAssembliesMap.TryGetValue(packageReference.ItemSpec, out var packageAssemblies))
-                        {
-                            // These are likely Analyzers, tools, etc.
-                            continue;
-                        }
-
-                        if (!packageAssemblies.Any(packageAssembly => assemblyReferences.Contains(packageAssembly)))
-                        {
-                            Log.LogWarning($"PackageReference {packageReference} can be removed");
-                        }
-                    }
-                }
-
-                return !Log.HasLoggedErrors;
             }
-            finally
+
+            if (ProjectReferences != null)
             {
-                AppDomain.CurrentDomain.AssemblyResolve -= ResolveAssembly;
+                foreach (ITaskItem projectReference in ProjectReferences)
+                {
+                    AssemblyName projectReferenceAssemblyName = new(projectReference.GetMetadata("FusionName"));
+                    if (!assemblyReferences.Contains(projectReferenceAssemblyName.Name))
+                    {
+                        string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
+                        Log.LogWarning($"ProjectReference {referenceProjectFile} can be removed");
+                    }
+                }
             }
+
+            if (PackageReferences != null)
+            {
+                foreach (ITaskItem packageReference in PackageReferences)
+                {
+                    if (!packageAssembliesMap.TryGetValue(packageReference.ItemSpec, out var packageAssemblies))
+                    {
+                        // These are likely Analyzers, tools, etc.
+                        continue;
+                    }
+
+                    if (!packageAssemblies.Any(packageAssembly => assemblyReferences.Contains(packageAssembly)))
+                    {
+                        Log.LogWarning($"PackageReference {packageReference} can be removed");
+                    }
+                }
+            }
+
+            return !Log.HasLoggedErrors;
         }
 
         private HashSet<string> GetAssemblyReferences() => new HashSet<string>(UsedReferences.Select(usedReference => AssemblyName.GetAssemblyName(usedReference.ItemSpec).Name), StringComparer.OrdinalIgnoreCase);

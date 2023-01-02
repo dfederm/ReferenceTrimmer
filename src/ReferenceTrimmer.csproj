@@ -13,6 +13,11 @@
     <PackageReference Include="System.Reflection.Metadata" Version="6.0.1" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\analyzer\ReferenceTrimmerAnalyzer.csproj" ReferenceOutputAssembly="false">
+      <OutputItemType>ReferenceTrimmerAnalyzerTargetPath</OutputItemType>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
     <None Include="build\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>true</Pack>
@@ -30,13 +35,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\analyzer\ReferenceTrimmerAnalyzer.csproj" ReferenceOutputAssembly="false" />
     <InternalsVisibleTo Include="ReferenceTrimmer.Tests" />
   </ItemGroup>
 
   <Target Name="_AddAnalyzersToOutput">
     <ItemGroup>
-      <TfmSpecificPackageFile Include="..\analyzer\$(IntermediateOutputPath)ReferenceTrimmerAnalyzer.dll" PackagePath="analyzers/dotnet/cs" />
+      <TfmSpecificPackageFile Include="@(ReferenceTrimmerAnalyzerTargetPath)" PackagePath="analyzers/dotnet" />
     </ItemGroup>
   </Target>
 </Project>
