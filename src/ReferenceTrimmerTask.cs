@@ -255,28 +255,11 @@ namespace ReferenceTrimmer
                         {
                             targetFrameworkAssemblyNames.Add(assemblyName);
                         }
-
                     }
                 }
             }
 
             return targetFrameworkAssemblyNames;
-        }
-
-        private Assembly ResolveAssembly(object sender, ResolveEventArgs args)
-        {
-            AssemblyName assemblyName = new(args.Name);
-
-            if (NugetAssemblies.Contains(assemblyName.Name))
-            {
-                string nugetProjectModelFile = Path.Combine(Path.GetDirectoryName(NuGetRestoreTargets), assemblyName.Name + ".dll");
-                if (File.Exists(nugetProjectModelFile))
-                {
-                    return Assembly.LoadFrom(nugetProjectModelFile);
-                }
-            }
-
-            return null;
         }
     }
 }
