@@ -25,8 +25,6 @@ namespace ReferenceTrimmer
         [Required]
         public string MSBuildProjectFile { get; set; }
 
-        public bool NeedsTransitiveAssemblyReferences { get; set; }
-
         public ITaskItem[] UsedReferences { get; set; }
         
         public ITaskItem[] References { get; set; }
@@ -41,13 +39,10 @@ namespace ReferenceTrimmer
 
         public string RuntimeIdentifier { get; set; }
 
-        public string NuGetRestoreTargets { get; set; }
-
         public ITaskItem[] TargetFrameworkDirectories { get; set; }
 
         public override bool Execute()
         {
-            // System.Diagnostics.Debugger.Launch();
             HashSet<string> assemblyReferences = GetAssemblyReferences();
             Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
             HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
@@ -187,6 +182,11 @@ namespace ReferenceTrimmer
                         return AssemblyName.GetAssemblyName(fullPath).Name!;
                     })
                     .ToList();
+                // Add this package's assemblies, if there are any
+                if (nugetLibraryAssemblies.Count == 0)
+                {
+                    continue;
+                }
 
                 // Walk up to add assemblies to all packages which directly or indirectly depend on this one.
                 var seenDependants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -196,17 +196,13 @@ namespace ReferenceTrimmer
                 {
                     var packageId = queue.Dequeue();
 
-                    // Add this package's assemblies, if there are any
-                    if (nugetLibraryAssemblies.Count > 0)
+                    if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
                     {
-                        if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
-                        {
-                            assemblies = new List<string>();
-                            packageAssemblies.Add(packageId, assemblies);
-                        }
-
-                        assemblies.AddRange(nugetLibraryAssemblies);
+                        assemblies = new List<string>();
+                        packageAssemblies.Add(packageId, assemblies);
                     }
+
+                    assemblies.AddRange(nugetLibraryAssemblies);
 
                     // Recurse though dependants
                     if (nugetDependants.TryGetValue(packageId, out var dependants))
