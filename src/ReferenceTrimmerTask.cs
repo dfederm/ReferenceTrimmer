@@ -10,23 +10,11 @@ namespace ReferenceTrimmer
 {
     public sealed class ReferenceTrimmerTask : MSBuildTask
     {
-        private static readonly HashSet<string> NugetAssemblies = new(StringComparer.OrdinalIgnoreCase)
-        {
-            // Direct dependency
-            "NuGet.ProjectModel",
-            
-            // Indirect dependencies
-            "NuGet.Common",
-            "NuGet.Frameworks",
-            "NuGet.Packaging",
-            "NuGet.Versioning",
-        };
-
         [Required]
         public string MSBuildProjectFile { get; set; }
 
         public ITaskItem[] UsedReferences { get; set; }
-        
+
         public ITaskItem[] References { get; set; }
 
         public ITaskItem[] ProjectReferences { get; set; }

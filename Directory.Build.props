@@ -13,6 +13,7 @@
 
     <!-- See https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005 -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
 
     <!-- Enable implicit usings -->
     <ImplicitUsings>Enable</ImplicitUsings>
