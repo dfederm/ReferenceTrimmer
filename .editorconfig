@@ -362,3 +362,24 @@ dotnet_naming_style.s_camelcase.required_suffix =
 dotnet_naming_style.s_camelcase.word_separator = 
 dotnet_naming_style.s_camelcase.capitalization = camel_case
 
+#### Code Analysis ####
+
+# Code Style rules (IDE*)
+dotnet_diagnostic.IDE0001.severity = error # Simplify name
+dotnet_diagnostic.IDE0002.severity = error # Simplify member access
+dotnet_diagnostic.IDE0004.severity = error # Remove unnecessary cast
+dotnet_diagnostic.IDE0005.severity = error # Remove unnecessary import
+dotnet_diagnostic.IDE0011.severity = error # Add braces
+dotnet_diagnostic.IDE0035.severity = error # Remove unreachable code
+dotnet_diagnostic.IDE0051.severity = error # Remove unused private member
+dotnet_diagnostic.IDE0052.severity = error # Remove unread private member
+dotnet_diagnostic.IDE0055.severity = error # Fix formatting
+dotnet_diagnostic.IDE0059.severity = error # Remove unnecessary value assignment
+dotnet_diagnostic.IDE0060.severity = error # Remove unused parameter
+dotnet_diagnostic.IDE0062.severity = error # Make local function static
+dotnet_diagnostic.IDE0076.severity = error # Remove invalid global 'SuppressMessageAttribute'
+dotnet_diagnostic.IDE0077.severity = error # Avoid legacy format target in global 'SuppressMessageAttribute'
+dotnet_diagnostic.IDE0079.severity = error # Remove unnecessary suppression
+dotnet_diagnostic.IDE0080.severity = error # Remove unnecessary suppression operator
+dotnet_diagnostic.IDE0100.severity = error # Remove unnecessary equality operator
+dotnet_diagnostic.IDE0110.severity = error # Remove unnecessary discard
