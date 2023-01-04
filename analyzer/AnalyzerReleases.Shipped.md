@@ -7,4 +7,4 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|--------------------
-RT0001  | References |  Warning | Unused references should be removed
+DOC001  | Documentation |  Warning | See https://github.com/dotnet/roslyn/issues/66188

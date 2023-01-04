@@ -9,7 +9,7 @@ Simply add a `PackageReference` to the [ReferenceTrimmer](https://www.nuget.org/
 
 The package contains build logic to emit warnings when unused dependencies are detected.
 
-Note: to get better effects, enable [`IDE0005`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005) unnecessary code rule. See also the note for why IDE0005 code analysis rule requires `<GenerateDocumentationFile>` property to be enabled.
+Note: to get better effects, enable [`IDE0005`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005) unnecessary code rule. See also the note for why IDE0005 code analysis rule requires `<GenerateDocumentationFile>` property to be enabled. Documentation generation is also required for accuracy of used references detection (based on https://github.com/dotnet/roslyn/issues/66188).
 
 ## Configuration
 `$(EnableReferenceTrimmer)` - Controls whether the build logic should run for a given project. Defaults to `true`.

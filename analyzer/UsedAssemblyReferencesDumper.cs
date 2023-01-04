@@ -7,8 +7,9 @@ namespace ReferenceTrimmer
     [DiagnosticAnalyzer(LanguageNames.CSharp, LanguageNames.VisualBasic, LanguageNames.FSharp)]
     public class UsedAssemblyReferencesDumper : DiagnosticAnalyzer
     {
-        internal static readonly string Title = "Unused references should be removed";
-        internal static DiagnosticDescriptor Rule = new DiagnosticDescriptor("RT0001", Title, "'{0}'", "References", DiagnosticSeverity.Warning, true, customTags: WellKnownDiagnosticTags.Unnecessary);
+        private static readonly string Title = "Enable documentation generation for accuracy of used references detection";
+        private static readonly string Message = "Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection";
+        private static DiagnosticDescriptor Rule = new DiagnosticDescriptor("DOC001", Title, Message, "Documentation", DiagnosticSeverity.Warning, true);
 
         /// <summary>
         /// The supported diagnosticts.
@@ -25,6 +26,13 @@ namespace ReferenceTrimmer
         private static void DumpUsedReferences(CompilationAnalysisContext context)
         {
             Compilation compilation = context.Compilation;
+            if (compilation.SyntaxTrees.FirstOrDefault()?.Options.DocumentationMode == DocumentationMode.None)
+            {
+                string nameOrPath = compilation.Options.ModuleName;
+                Location location = Location.None;
+                context.ReportDiagnostic(Diagnostic.Create(Rule, location, nameOrPath));
+            }
+
             if (compilation.Options.Errors.IsEmpty)
             {
                 IEnumerable<MetadataReference> usedReferences = compilation.GetUsedAssemblyReferences();
