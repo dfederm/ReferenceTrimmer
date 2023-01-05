@@ -28,17 +28,20 @@ namespace ReferenceTrimmer
             Compilation compilation = context.Compilation;
             if (compilation.SyntaxTrees.FirstOrDefault()?.Options.DocumentationMode == DocumentationMode.None)
             {
-                string nameOrPath = compilation.Options.ModuleName;
+                string? nameOrPath = compilation.Options.ModuleName;
                 Location location = Location.None;
                 context.ReportDiagnostic(Diagnostic.Create(Rule, location, nameOrPath));
             }
 
             if (compilation.Options.Errors.IsEmpty)
             {
-                IEnumerable<MetadataReference> usedReferences = compilation.GetUsedAssemblyReferences();
-                AdditionalText analyzerOutputFile = context.Options.AdditionalFiles.FirstOrDefault(file => file.Path.EndsWith("_ReferenceTrimmer_GetUsedAssemblyReferences.txt", StringComparison.OrdinalIgnoreCase));
-                Directory.CreateDirectory(Path.GetDirectoryName(analyzerOutputFile.Path));
-                File.WriteAllLines(analyzerOutputFile.Path, usedReferences.Select(reference => reference.Display));
+                AdditionalText? analyzerOutputFile = context.Options.AdditionalFiles.FirstOrDefault(file => file.Path.EndsWith("_ReferenceTrimmer_GetUsedAssemblyReferences.txt", StringComparison.OrdinalIgnoreCase));
+                if (analyzerOutputFile != null)
+                {
+                    IEnumerable<MetadataReference> usedReferences = compilation.GetUsedAssemblyReferences();
+                    Directory.CreateDirectory(Path.GetDirectoryName(analyzerOutputFile.Path));
+                    File.WriteAllLines(analyzerOutputFile.Path, usedReferences.Select(reference => reference.Display));
+                }
             }
         }
     }
