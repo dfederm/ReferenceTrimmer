@@ -2,21 +2,38 @@
 <Project>
   <UsingTask TaskName="ReferenceTrimmerTask" AssemblyFile="$(ReferenceTrimmerTaskAssembly)" />
 
+  <PropertyGroup>
+    <ReferenceTrimmerGetUsedAssemblyReferencesFile>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)_ReferenceTrimmer_GetUsedAssemblyReferences.txt</ReferenceTrimmerGetUsedAssemblyReferencesFile>
+    <CoreCompileDependsOn>$(CoreCompileDependsOn);DeleteReferenceTrimmerGetUsedAssemblyReferencesFile</CoreCompileDependsOn>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EnableReferenceTrimmer)' != 'false'">
+    <!-- https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Using%20Additional%20Files.md#in-a-project-file -->
+    <AdditionalFiles Include="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)" />
+    <FileWrites Include="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)" />
+  </ItemGroup>
+
+  <Target Name="DeleteReferenceTrimmerGetUsedAssemblyReferencesFile" Condition="'$(EnableReferenceTrimmer)' != 'false'" BeforeTargets="BeforeBuild" >
+    <Delete Files="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)" Condition="Exists('$(ReferenceTrimmerGetUsedAssemblyReferencesFile)')" />
+  </Target>
+
   <Target Name="VerifyReferences"
           Condition="'$(EnableReferenceTrimmer)' != 'false'"
           AfterTargets="AfterBuild"
           DependsOnTargets="ResolveProjectReferences">
-    <PropertyGroup>
-       <!-- Certain project types may require references simply to copy them to the output folder to satisfy transitive dependencies. -->
-       <_ReferenceTrimmerNeedsTransitiveAssemblyReferences Condition="'$(OutputType)' == 'Exe'">true</_ReferenceTrimmerNeedsTransitiveAssemblyReferences>
-    </PropertyGroup>
     <ItemGroup>
       <_ReferenceTrimmerProjectReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ProjectReference'" />
     </ItemGroup>
 
+    <ReadLinesFromFile File="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)">
+      <Output TaskParameter="Lines" ItemName="UsedReference" />
+    </ReadLinesFromFile>
+    <Warning Text="Skipping ReferenceTrimmerTask due to empty file $(ReferenceTrimmerGetUsedAssemblyReferencesFile)" Condition=" '@(UsedReference)' == '' "/>
+
     <ReferenceTrimmerTask
-      OutputAssembly="$(TargetPath)"
-      NeedsTransitiveAssemblyReferences="$(_ReferenceTrimmerNeedsTransitiveAssemblyReferences)"
+      Condition=" '@(UsedReference)' != '' "
+      MSBuildProjectFile="$(MSBuildProjectFile)"
+      UsedReferences="@(UsedReference)"
       References="@(Reference)"
       ProjectReferences="@(_ReferenceTrimmerProjectReferences)"
       PackageReferences="@(PackageReference)"

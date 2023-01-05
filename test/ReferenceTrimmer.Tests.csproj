@@ -17,6 +17,9 @@
     <ProjectReference Include="..\src\ReferenceTrimmer.csproj">
       <OutputItemType>ReferenceTrimmerTargetPath</OutputItemType>
     </ProjectReference>
+    <ProjectReference Include="..\analyzer\ReferenceTrimmerAnalyzer.csproj">
+      <OutputItemType>ReferenceTrimmerAnalyzerTargetPath</OutputItemType>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Content Include="TestData\**">
@@ -28,9 +31,11 @@
           DependsOnTargets="ResolveProjectReferences">
     <PropertyGroup>
       <ReferenceTrimmerOutputPath>@(ReferenceTrimmerTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerOutputPath>
+      <ReferenceTrimmerAnalyzerOutputPath>@(ReferenceTrimmerAnalyzerTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerAnalyzerOutputPath>
     </PropertyGroup>
     <ItemGroup>
       <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerOutputPath)\**" />
+      <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerAnalyzerOutputPath)\**" />
     </ItemGroup>
   </Target>
   <Target Name="CopyReferenceTrimmerOutputs"

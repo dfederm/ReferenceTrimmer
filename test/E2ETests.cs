@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -28,7 +28,13 @@ public sealed class E2ETests
             $@"<Project>
   <PropertyGroup>
     <ReferenceTrimmerTaskAssembly>{testOutputDir}\ReferenceTrimmer\ReferenceTrimmer.dll</ReferenceTrimmerTaskAssembly>
+    <!-- Per https://github.com/dotnet/roslyn/issues/66188 /doc param is required for accurate results -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
+  <ItemGroup>
+    <Analyzer Include=""{testOutputDir}\ReferenceTrimmer\ReferenceTrimmerAnalyzer.dll""/>
+  </ItemGroup>
   <Import Project=""{testOutputDir}\ReferenceTrimmer\build\ReferenceTrimmer.props"" />
 </Project>");
         File.WriteAllText(
@@ -110,6 +116,17 @@ public sealed class E2ETests
             expectedWarnings: new[]
             {
                 @"PackageReference Newtonsoft.Json can be removed",
+            });
+    }
+
+    [TestMethod]
+    public void UnusedPackageReferenceDocDisabled()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: new[]
+            {
+                @"Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection",
             });
     }
 

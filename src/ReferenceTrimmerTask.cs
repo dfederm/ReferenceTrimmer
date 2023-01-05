@@ -1,6 +1,4 @@
-﻿using System.Reflection;
-using System.Reflection.Metadata;
-using System.Reflection.PortableExecutable;
+using System.Reflection;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
@@ -16,7 +14,7 @@ namespace ReferenceTrimmer
         {
             // Direct dependency
             "NuGet.ProjectModel",
-            
+
             // Indirect dependencies
             "NuGet.Common",
             "NuGet.Frameworks",
@@ -25,9 +23,9 @@ namespace ReferenceTrimmer
         };
 
         [Required]
-        public string OutputAssembly { get; set; }
+        public string MSBuildProjectFile { get; set; }
 
-        public bool NeedsTransitiveAssemblyReferences { get; set; }
+        public ITaskItem[] UsedReferences { get; set; }
 
         public ITaskItem[] References { get; set; }
 
@@ -102,7 +100,7 @@ namespace ReferenceTrimmer
 
                         if (!assemblyReferences.Contains(referenceAssemblyName))
                         {
-                            Log.LogWarning($"Reference {referenceSpec} can be removed");
+                            LogWarning("Reference {0} can be removed", referenceSpec);
                         }
                     }
                 }
@@ -115,7 +113,7 @@ namespace ReferenceTrimmer
                         if (!assemblyReferences.Contains(projectReferenceAssemblyName.Name))
                         {
                             string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
-                            Log.LogWarning($"ProjectReference {referenceProjectFile} can be removed");
+                            LogWarning("ProjectReference {0} can be removed", referenceProjectFile);
                         }
                     }
                 }
@@ -132,45 +130,22 @@ namespace ReferenceTrimmer
 
                         if (!packageAssemblies.Any(packageAssembly => assemblyReferences.Contains(packageAssembly)))
                         {
-                            Log.LogWarning($"PackageReference {packageReference} can be removed");
+                            LogWarning("PackageReference {0} can be removed", packageReference);
                         }
                     }
                 }
-
-                return !Log.HasLoggedErrors;
             }
             finally
             {
                 AppDomain.CurrentDomain.AssemblyResolve -= ResolveAssembly;
             }
+
+            return !Log.HasLoggedErrors;
         }
 
-        private HashSet<string> GetAssemblyReferences()
-        {
-            var assemblyReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using (var stream = File.OpenRead(OutputAssembly))
-            using (var peReader = new PEReader(stream))
-            {
-                var metadata = peReader.GetMetadataReader(MetadataReaderOptions.ApplyWindowsRuntimeProjections);
-                if (!metadata.IsAssembly)
-                {
-                    Log.LogError($"{OutputAssembly} is not an assembly");
-                    return null;
-                }
+        private void LogWarning(string message, params object[] messageArgs) => Log.LogWarning(null, null, null, MSBuildProjectFile, 0, 0, 0, 0, message, messageArgs);
 
-                foreach (var assemblyReferenceHandle in metadata.AssemblyReferences)
-                {
-                    AssemblyReference reference = metadata.GetAssemblyReference(assemblyReferenceHandle);
-                    string name = metadata.GetString(reference.Name);
-                    if (!string.IsNullOrEmpty(name))
-                    {
-                        assemblyReferences.Add(name);
-                    }
-                }
-            }
-
-            return assemblyReferences;
-        }
+        private HashSet<string> GetAssemblyReferences() => new(UsedReferences.Select(usedReference => AssemblyName.GetAssemblyName(usedReference.ItemSpec).Name), StringComparer.OrdinalIgnoreCase);
 
         private Dictionary<string, List<string>> GetPackageAssemblies()
         {
@@ -218,6 +193,12 @@ namespace ReferenceTrimmer
                     })
                     .ToList();
 
+                // Add this package's assemblies, if there are any
+                if (nugetLibraryAssemblies.Count == 0)
+                {
+                    continue;
+                }
+
                 // Walk up to add assemblies to all packages which directly or indirectly depend on this one.
                 var seenDependants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var queue = new Queue<string>();
@@ -226,17 +207,13 @@ namespace ReferenceTrimmer
                 {
                     var packageId = queue.Dequeue();
 
-                    // Add this package's assemblies, if there are any
-                    if (nugetLibraryAssemblies.Count > 0)
+                    if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
                     {
-                        if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
-                        {
-                            assemblies = new List<string>();
-                            packageAssemblies.Add(packageId, assemblies);
-                        }
-
-                        assemblies.AddRange(nugetLibraryAssemblies);
+                        assemblies = new List<string>();
+                        packageAssemblies.Add(packageId, assemblies);
                     }
+
+                    assemblies.AddRange(nugetLibraryAssemblies);
 
                     // Recurse though dependants
                     if (nugetDependants.TryGetValue(packageId, out var dependants))
@@ -285,7 +262,6 @@ namespace ReferenceTrimmer
                         {
                             targetFrameworkAssemblyNames.Add(assemblyName);
                         }
-
                     }
                 }
             }
@@ -293,6 +269,9 @@ namespace ReferenceTrimmer
             return targetFrameworkAssemblyNames;
         }
 
+        /// <summary>
+        /// Assembly resolution needed for parsing the lock file, needed if the version the task depends on is a different version than MSBuild's
+        /// </summary>
         private Assembly ResolveAssembly(object sender, ResolveEventArgs args)
         {
             AssemblyName assemblyName = new(args.Name);
