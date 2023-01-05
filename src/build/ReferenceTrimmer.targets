@@ -40,6 +40,7 @@
       ProjectAssetsFile="$(ProjectAssetsFile)"
       NuGetTargetMoniker="$(NuGetTargetMoniker)"
       RuntimeIdentifier="$(RuntimeIdentifier)"
+      NuGetRestoreTargets="$(NuGetRestoreTargets)"
       TargetFrameworkDirectories="$(TargetFrameworkDirectory)" />
   </Target>
 </Project>

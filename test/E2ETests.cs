@@ -109,7 +109,6 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    [Ignore("https://github.com/dotnet/roslyn/issues/66188")]
     public void UnusedPackageReference()
     {
         RunMSBuild(

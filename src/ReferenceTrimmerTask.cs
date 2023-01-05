@@ -10,6 +10,18 @@ namespace ReferenceTrimmer
 {
     public sealed class ReferenceTrimmerTask : MSBuildTask
     {
+        private static readonly HashSet<string> NugetAssemblies = new(StringComparer.OrdinalIgnoreCase)
+        {
+            // Direct dependency
+            "NuGet.ProjectModel",
+
+            // Indirect dependencies
+            "NuGet.Common",
+            "NuGet.Frameworks",
+            "NuGet.Packaging",
+            "NuGet.Versioning",
+        };
+
         [Required]
         public string MSBuildProjectFile { get; set; }
 
@@ -27,95 +39,105 @@ namespace ReferenceTrimmer
 
         public string RuntimeIdentifier { get; set; }
 
+        public string NuGetRestoreTargets { get; set; }
+
         public ITaskItem[] TargetFrameworkDirectories { get; set; }
 
         public override bool Execute()
         {
-            HashSet<string> assemblyReferences = GetAssemblyReferences();
-            Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
-            HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
-
-            if (References != null)
+            AppDomain.CurrentDomain.AssemblyResolve += ResolveAssembly;
+            try
             {
-                foreach (ITaskItem reference in References)
+                HashSet<string> assemblyReferences = GetAssemblyReferences();
+                Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
+                HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
+
+                if (References != null)
                 {
-                    // Ignore implicity defined references (references which are SDK-provided)
-                    if (reference.GetMetadata("IsImplicitlyDefined").Equals("true", StringComparison.OrdinalIgnoreCase))
+                    foreach (ITaskItem reference in References)
                     {
-                        continue;
-                    }
+                        // Ignore implicity defined references (references which are SDK-provided)
+                        if (reference.GetMetadata("IsImplicitlyDefined").Equals("true", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
 
-                    // During the _HandlePackageFileConflicts target (ResolvePackageFileConflicts task), assembly conflicts may be
-                    // resolved with an assembly from the target framework instead of a package. The package may be an indirect dependency,
-                    // so the resulting reference would be unavoidable.
-                    if (targetFrameworkAssemblies.Contains(reference.ItemSpec))
-                    {
-                        continue;
-                    }
+                        // During the _HandlePackageFileConflicts target (ResolvePackageFileConflicts task), assembly conflicts may be
+                        // resolved with an assembly from the target framework instead of a package. The package may be an indirect dependency,
+                        // so the resulting reference would be unavoidable.
+                        if (targetFrameworkAssemblies.Contains(reference.ItemSpec))
+                        {
+                            continue;
+                        }
 
-                    // Ignore references from packages. Those as handled later.
-                    if (reference.GetMetadata("NuGetPackageId").Length != 0)
-                    {
-                        continue;
-                    }
+                        // Ignore references from packages. Those as handled later.
+                        if (reference.GetMetadata("NuGetPackageId").Length != 0)
+                        {
+                            continue;
+                        }
 
-                    var referenceSpec = reference.ItemSpec;
-                    var referenceHintPath = reference.GetMetadata("HintPath");
-                    var referenceName = reference.GetMetadata("Name");
+                        var referenceSpec = reference.ItemSpec;
+                        var referenceHintPath = reference.GetMetadata("HintPath");
+                        var referenceName = reference.GetMetadata("Name");
 
-                    string referenceAssemblyName;
+                        string referenceAssemblyName;
 
-                    if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
-                    {
-                        // If a hint path is given and exists, use that assembly's name.
-                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).Name;
-                    }
-                    else if (!string.IsNullOrEmpty(referenceName) && File.Exists(referenceSpec))
-                    {
-                        // If a name is given and the spec is an existing file, use that assembly's name.
-                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).Name;
-                    }
-                    else
-                    {
-                        // The assembly name is probably just the item spec.
-                        referenceAssemblyName = referenceSpec;
-                    }
+                        if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
+                        {
+                            // If a hint path is given and exists, use that assembly's name.
+                            referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).Name;
+                        }
+                        else if (!string.IsNullOrEmpty(referenceName) && File.Exists(referenceSpec))
+                        {
+                            // If a name is given and the spec is an existing file, use that assembly's name.
+                            referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).Name;
+                        }
+                        else
+                        {
+                            // The assembly name is probably just the item spec.
+                            referenceAssemblyName = referenceSpec;
+                        }
 
-                    if (!assemblyReferences.Contains(referenceAssemblyName))
+                        if (!assemblyReferences.Contains(referenceAssemblyName))
+                        {
+                            LogWarning("Reference {0} can be removed", referenceSpec);
+                        }
+                    }
+                }
+
+                if (ProjectReferences != null)
+                {
+                    foreach (ITaskItem projectReference in ProjectReferences)
                     {
-                        LogWarning("Reference {0} can be removed", referenceSpec);
+                        AssemblyName projectReferenceAssemblyName = new(projectReference.GetMetadata("FusionName"));
+                        if (!assemblyReferences.Contains(projectReferenceAssemblyName.Name))
+                        {
+                            string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
+                            LogWarning("ProjectReference {0} can be removed", referenceProjectFile);
+                        }
+                    }
+                }
+
+                if (PackageReferences != null)
+                {
+                    foreach (ITaskItem packageReference in PackageReferences)
+                    {
+                        if (!packageAssembliesMap.TryGetValue(packageReference.ItemSpec, out var packageAssemblies))
+                        {
+                            // These are likely Analyzers, tools, etc.
+                            continue;
+                        }
+
+                        if (!packageAssemblies.Any(packageAssembly => assemblyReferences.Contains(packageAssembly)))
+                        {
+                            LogWarning("PackageReference {0} can be removed", packageReference);
+                        }
                     }
                 }
             }
-
-            if (ProjectReferences != null)
+            finally
             {
-                foreach (ITaskItem projectReference in ProjectReferences)
-                {
-                    AssemblyName projectReferenceAssemblyName = new(projectReference.GetMetadata("FusionName"));
-                    if (!assemblyReferences.Contains(projectReferenceAssemblyName.Name))
-                    {
-                        string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
-                        LogWarning("ProjectReference {0} can be removed", referenceProjectFile);
-                    }
-                }
-            }
-
-            if (PackageReferences != null)
-            {
-                foreach (ITaskItem packageReference in PackageReferences)
-                {
-                    if (!packageAssembliesMap.TryGetValue(packageReference.ItemSpec, out var packageAssemblies))
-                    {
-                        // These are likely Analyzers, tools, etc.
-                        continue;
-                    }
-
-                    if (!packageAssemblies.Any(packageAssembly => assemblyReferences.Contains(packageAssembly)))
-                    {
-                        LogWarning("PackageReference {0} can be removed", packageReference);
-                    }
-                }
+                AppDomain.CurrentDomain.AssemblyResolve -= ResolveAssembly;
             }
 
             return !Log.HasLoggedErrors;
@@ -170,6 +192,7 @@ namespace ReferenceTrimmer
                         return AssemblyName.GetAssemblyName(fullPath).Name!;
                     })
                     .ToList();
+
                 // Add this package's assemblies, if there are any
                 if (nugetLibraryAssemblies.Count == 0)
                 {
@@ -244,6 +267,25 @@ namespace ReferenceTrimmer
             }
 
             return targetFrameworkAssemblyNames;
+        }
+
+        /// <summary>
+        /// Assembly resolution needed for parsing the lock file, needed if the version the task depends on is a different version than MSBuild's
+        /// </summary>
+        private Assembly ResolveAssembly(object sender, ResolveEventArgs args)
+        {
+            AssemblyName assemblyName = new(args.Name);
+
+            if (NugetAssemblies.Contains(assemblyName.Name))
+            {
+                string nugetProjectModelFile = Path.Combine(Path.GetDirectoryName(NuGetRestoreTargets), assemblyName.Name + ".dll");
+                if (File.Exists(nugetProjectModelFile))
+                {
+                    return Assembly.LoadFrom(nugetProjectModelFile);
+                }
+            }
+
+            return null;
         }
     }
 }
