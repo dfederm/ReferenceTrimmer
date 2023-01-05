@@ -4,7 +4,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <!-- 3.10 is the lowest version the GetUsedAssemblyReferences API is available in. Upgrading this package automatically upgrades the minimum compiler version this analyzer will work with, so upgrade with care -->
+    <!-- 3.10 is the lowest version the GetUsedAssemblyReferences API is available in.
+         Upgrading this package automatically upgrades the minimum compiler version this analyzer will work with, so upgrade with care and update README.md accordingly -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" Version="3.10" />
   </ItemGroup>
   <ItemGroup>
