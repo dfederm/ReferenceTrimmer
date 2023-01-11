@@ -185,7 +185,7 @@ namespace ReferenceTrimmer
                     .Where(path => !path.EndsWith("_._", StringComparison.Ordinal)) // Ignore special packages
                     .Select(path =>
                     {
-                        var packageFolderRelativePath = Path.Combine(nugetLibrary.Name, nugetLibrary.Version.ToNormalizedString(), path);
+                        var packageFolderRelativePath = Path.Combine(nugetLibrary.Name.ToLowerInvariant(), nugetLibrary.Version.ToNormalizedString(), path);
                         var fullPath = packageFolders
                             .Select(packageFolder => Path.Combine(packageFolder, packageFolderRelativePath))
                             .First(File.Exists);
