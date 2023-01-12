@@ -180,12 +180,13 @@ namespace ReferenceTrimmer
             // Get the transitive closure of assemblies included by each package
             foreach (var nugetLibrary in nugetLibraries)
             {
+                string nugetLibraryPath = lockFile.GetLibrary(nugetLibrary.Name, nugetLibrary.Version).Path;
                 List<string> nugetLibraryAssemblies = nugetLibrary.CompileTimeAssemblies
                     .Select(item => item.Path)
                     .Where(path => !path.EndsWith("_._", StringComparison.Ordinal)) // Ignore special packages
                     .Select(path =>
                     {
-                        var packageFolderRelativePath = Path.Combine(nugetLibrary.Name, nugetLibrary.Version.ToNormalizedString(), path);
+                        var packageFolderRelativePath = Path.Combine(nugetLibraryPath, path);
                         var fullPath = packageFolders
                             .Select(packageFolder => Path.Combine(packageFolder, packageFolderRelativePath))
                             .First(File.Exists);
