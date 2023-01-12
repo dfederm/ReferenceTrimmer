@@ -25,7 +25,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --configuration Release --no-build --logger trx --results-directory TestResults --collect:"XPlat Code Coverage"
+        run: dotnet test --configuration Release --no-build --logger trx --results-directory TestResults --collect:"Code Coverage;Format=Cobertura"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
