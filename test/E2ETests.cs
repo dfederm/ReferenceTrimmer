@@ -27,20 +27,20 @@ public sealed class E2ETests
             Path.Combine(testContext.TestRunDirectory, "Directory.Build.props"),
             $@"<Project>
   <PropertyGroup>
-    <ReferenceTrimmerTaskAssembly>{testOutputDir}\ReferenceTrimmer\ReferenceTrimmer.dll</ReferenceTrimmerTaskAssembly>
+    <ReferenceTrimmerTaskAssembly>{testOutputDir}\ReferenceTrimmer.dll</ReferenceTrimmerTaskAssembly>
     <!-- Per https://github.com/dotnet/roslyn/issues/66188 /doc param is required for accurate results -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <Analyzer Include=""{testOutputDir}\ReferenceTrimmer\ReferenceTrimmerAnalyzer.dll""/>
+    <Analyzer Include=""{testOutputDir}\ReferenceTrimmerAnalyzer.dll""/>
   </ItemGroup>
-  <Import Project=""{testOutputDir}\ReferenceTrimmer\build\ReferenceTrimmer.props"" />
+  <Import Project=""{testOutputDir}\build\ReferenceTrimmer.props"" />
 </Project>");
         File.WriteAllText(
             Path.Combine(testContext.TestRunDirectory, "Directory.Build.targets"),
             $@"<Project>
-  <Import Project=""{testOutputDir}\ReferenceTrimmer\build\ReferenceTrimmer.targets"" />
+  <Import Project=""{testOutputDir}\build\ReferenceTrimmer.targets"" />
 </Project>");
     }
 
