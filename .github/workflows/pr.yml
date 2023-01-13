@@ -7,8 +7,10 @@ on:
 
 jobs:
   build:
-    # TODO: Add ubuntu-latest
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [ windows-latest, ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
     steps:
 
       - uses: actions/checkout@v3

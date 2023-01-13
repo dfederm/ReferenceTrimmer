@@ -7,6 +7,8 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace ReferenceTrimmer.Tests;
 
 [TestClass]
+[DeploymentItem("TestData/Directory.Build.props")]
+[DeploymentItem("TestData/Directory.Build.targets")]
 public sealed class E2ETests
 {
     private static readonly (string ExePath, string Verb) MSBuild = GetMsBuildExeAndVerb();
@@ -17,34 +19,8 @@ public sealed class E2ETests
 
     public TestContext TestContext { get; set; }
 
-    [ClassInitialize]
-    public static void ClassInitialize(TestContext testContext)
-    {
-        string testOutputDir = Path.GetFullPath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
-
-        // Write some Directory.Build.(props|targets) to avoid unexpected inheritance and add the build files.
-        File.WriteAllText(
-            Path.Combine(testContext.TestRunDirectory, "Directory.Build.props"),
-            $@"<Project>
-  <PropertyGroup>
-    <ReferenceTrimmerTaskAssembly>{testOutputDir}\ReferenceTrimmer.dll</ReferenceTrimmerTaskAssembly>
-    <!-- Per https://github.com/dotnet/roslyn/issues/66188 /doc param is required for accurate results -->
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
-  </PropertyGroup>
-  <ItemGroup>
-    <Analyzer Include=""{testOutputDir}\ReferenceTrimmerAnalyzer.dll""/>
-  </ItemGroup>
-  <Import Project=""{testOutputDir}\build\ReferenceTrimmer.props"" />
-</Project>");
-        File.WriteAllText(
-            Path.Combine(testContext.TestRunDirectory, "Directory.Build.targets"),
-            $@"<Project>
-  <Import Project=""{testOutputDir}\build\ReferenceTrimmer.targets"" />
-</Project>");
-    }
-
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(UsedProjectReference)}", nameof(UsedProjectReference))]
     public void UsedProjectReference()
     {
         RunMSBuild(
@@ -53,6 +29,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(UnusedProjectReference)}", nameof(UnusedProjectReference))]
     public void UnusedProjectReference()
     {
         RunMSBuild(
@@ -64,6 +41,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(UsedReference)}", nameof(UsedReference))]
     public void UsedReference()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
@@ -77,6 +55,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(UnusedReference)}", nameof(UnusedReference))]
     public void UnusedReference()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
@@ -93,6 +72,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(UsedPackageReference)}", nameof(UsedPackageReference))]
     public void UsedPackageReference()
     {
         RunMSBuild(
@@ -101,6 +81,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(UsedIndirectPackageReference)}", nameof(UsedIndirectPackageReference))]
     public void UsedIndirectPackageReference()
     {
         RunMSBuild(
@@ -109,6 +90,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(UnusedPackageReference)}", nameof(UnusedPackageReference))]
     public void UnusedPackageReference()
     {
         RunMSBuild(
@@ -120,6 +102,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(UnusedPackageReferenceDocDisabled)}", nameof(UnusedPackageReferenceDocDisabled))]
     public void UnusedPackageReferenceDocDisabled()
     {
         RunMSBuild(
@@ -131,6 +114,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(MissingReferenceSourceTarget)}", nameof(MissingReferenceSourceTarget))]
     public void MissingReferenceSourceTarget()
     {
         RunMSBuild(
@@ -139,6 +123,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(PlatformPackageConflictResolution)}", nameof(PlatformPackageConflictResolution))]
     public void PlatformPackageConflictResolution()
     {
         RunMSBuild(
@@ -183,61 +168,21 @@ public sealed class E2ETests
         return ("dotnet", "build");
     }
 
-    // From: https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories
-    private static void DirectoryCopy(string sourceDirName, string destDirName)
-    {
-        // Get the subdirectories for the specified directory.
-        var dir = new DirectoryInfo(sourceDirName);
-
-        if (!dir.Exists)
-        {
-            throw new DirectoryNotFoundException($"Source directory does not exist or could not be found: {sourceDirName}");
-        }
-
-        var subdirs = dir.GetDirectories();
-
-        // If the destination directory doesn't exist, create it.
-        if (!Directory.Exists(destDirName))
-        {
-            Directory.CreateDirectory(destDirName);
-        }
-
-        // Get the files in the directory and copy them to the new location.
-        var files = dir.GetFiles();
-        foreach (var file in files)
-        {
-            var destFile = Path.Combine(destDirName, file.Name);
-            file.CopyTo(destFile, false);
-        }
-
-        // Copy subdirectories and their contents to new location.
-        foreach (var subdir in subdirs)
-        {
-            var destSubdirName = Path.Combine(destDirName, subdir.Name);
-            DirectoryCopy(subdir.FullName, destSubdirName);
-        }
-    }
-
     private void RunMSBuild(string projectFile, string[] expectedWarnings)
     {
         // Copy to the test run dir to avoid cross-test contamination
-        var testDataExecPath = Path.Combine(TestContext.TestRunDirectory, TestContext.TestName);
-        if (!Directory.Exists(testDataExecPath))
-        {
-            var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext.TestName));
-            DirectoryCopy(testDataSourcePath, testDataExecPath);
-        }
-
+        var testDataExecPath = Path.Combine(TestContext.TestRunDirectory, "Out", TestContext.TestName);
         string logDirBase = Path.Combine(testDataExecPath, "Logs");
         string binlogFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".binlog");
         string warningsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".warnings.log");
         string errorsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".errors.log");
+        string testOutputDir = Path.GetFullPath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
 
         Process process = Process.Start(
             new ProcessStartInfo
             {
                 FileName = MSBuild.ExePath,
-                Arguments = $"{MSBuild.Verb} \"{projectFile}\" -restore -nologo -nodeReuse:false -noAutoResponse -bl:\"{binlogFilePath}\" -flp1:logfile=\"{errorsFilePath}\";errorsonly -flp2:logfile=\"{warningsFilePath}\";warningsonly",
+                Arguments = $"{MSBuild.Verb} \"{projectFile}\" -restore -nologo -nodeReuse:false -noAutoResponse -bl:\"{binlogFilePath}\" -flp1:logfile=\"{errorsFilePath}\";errorsonly -flp2:logfile=\"{warningsFilePath}\";warningsonly -p:TestOutputDir={testOutputDir}",
                 WorkingDirectory = testDataExecPath,
                 UseShellExecute = false,
                 CreateNoWindow = true,
