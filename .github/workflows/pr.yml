@@ -31,6 +31,7 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           directory: ./TestResults
+          files: '*.cobertura.xml'
 
       - name: Upload test results
         uses: actions/upload-artifact@v3

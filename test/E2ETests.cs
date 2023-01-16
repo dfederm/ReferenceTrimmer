@@ -31,6 +31,8 @@ public sealed class E2ETests
     <!-- Per https://github.com/dotnet/roslyn/issues/66188 /doc param is required for accurate results -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- Ensure always instrumented binaries are used for code coverage -->
+    <UseSharedCompilation>false</UseSharedCompilation>
   </PropertyGroup>
   <ItemGroup>
     <Analyzer Include=""{testOutputDir}\ReferenceTrimmerAnalyzer.dll""/>
