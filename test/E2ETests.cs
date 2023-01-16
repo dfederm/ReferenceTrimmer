@@ -114,6 +114,15 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DeploymentItem($"TestData/{nameof(BuildPackageReference)}", nameof(BuildPackageReference))]
+    public void BuildPackageReference()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
+
+    [TestMethod]
     [DeploymentItem($"TestData/{nameof(MissingReferenceSourceTarget)}", nameof(MissingReferenceSourceTarget))]
     public void MissingReferenceSourceTarget()
     {

@@ -49,7 +49,7 @@ namespace ReferenceTrimmer
             try
             {
                 HashSet<string> assemblyReferences = GetAssemblyReferences();
-                Dictionary<string, List<string>> packageAssembliesMap = GetPackageAssemblies();
+                Dictionary<string, PackageInfo> packageInfos = GetPackageInfos();
                 HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
 
                 if (References != null)
@@ -122,13 +122,19 @@ namespace ReferenceTrimmer
                 {
                     foreach (ITaskItem packageReference in PackageReferences)
                     {
-                        if (!packageAssembliesMap.TryGetValue(packageReference.ItemSpec, out var packageAssemblies))
+                        if (!packageInfos.TryGetValue(packageReference.ItemSpec, out PackageInfo packageInfo))
                         {
                             // These are likely Analyzers, tools, etc.
                             continue;
                         }
 
-                        if (!packageAssemblies.Any(packageAssembly => assemblyReferences.Contains(packageAssembly)))
+                        // Ignore packages with build logic as we cannot easily evaluate whether the build logic is necessary or not.
+                        if (packageInfo.BuildFiles.Count > 0)
+                        {
+                            continue;
+                        }
+
+                        if (!packageInfo.CompileTimeAssemblies.Any(assemblyReferences.Contains))
                         {
                             LogWarning("PackageReference {0} can be removed", packageReference);
                         }
@@ -147,9 +153,9 @@ namespace ReferenceTrimmer
 
         private HashSet<string> GetAssemblyReferences() => new(UsedReferences.Select(usedReference => AssemblyName.GetAssemblyName(usedReference.ItemSpec).Name), StringComparer.OrdinalIgnoreCase);
 
-        private Dictionary<string, List<string>> GetPackageAssemblies()
+        private Dictionary<string, PackageInfo> GetPackageInfos()
         {
-            var packageAssemblies = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var packageInfoBuilders = new Dictionary<string, PackageInfoBuilder>(StringComparer.OrdinalIgnoreCase);
 
             var lockFile = LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
             var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
@@ -162,7 +168,7 @@ namespace ReferenceTrimmer
             // Compute the hierarchy of packages.
             // Keys are packages and values are packages which depend on that package.
             var nugetDependants = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var nugetLibrary in nugetLibraries)
+            foreach (LockFileTargetLibrary nugetLibrary in nugetLibraries)
             {
                 var packageId = nugetLibrary.Name;
                 foreach (var dependency in nugetLibrary.Dependencies)
@@ -178,59 +184,70 @@ namespace ReferenceTrimmer
             }
 
             // Get the transitive closure of assemblies included by each package
-            foreach (var nugetLibrary in nugetLibraries)
+            foreach (LockFileTargetLibrary nugetLibrary in nugetLibraries)
             {
-                string nugetLibraryPath = lockFile.GetLibrary(nugetLibrary.Name, nugetLibrary.Version).Path;
+                string nugetLibraryRelativePath = lockFile.GetLibrary(nugetLibrary.Name, nugetLibrary.Version).Path;
+                string nugetLibraryAbsolutePath = packageFolders
+                    .Select(packageFolder => Path.Combine(packageFolder, nugetLibraryRelativePath))
+                    .First(Directory.Exists);
+
                 List<string> nugetLibraryAssemblies = nugetLibrary.CompileTimeAssemblies
                     .Select(item => item.Path)
                     .Where(path => !path.EndsWith("_._", StringComparison.Ordinal)) // Ignore special packages
                     .Select(path =>
                     {
-                        var packageFolderRelativePath = Path.Combine(nugetLibraryPath, path);
-                        var fullPath = packageFolders
-                            .Select(packageFolder => Path.Combine(packageFolder, packageFolderRelativePath))
-                            .First(File.Exists);
-                        return AssemblyName.GetAssemblyName(fullPath).Name!;
+                        var fullPath = Path.Combine(nugetLibraryAbsolutePath, path);
+                        return AssemblyName.GetAssemblyName(fullPath).Name;
                     })
                     .ToList();
 
-                // Add this package's assemblies, if there are any
-                if (nugetLibraryAssemblies.Count == 0)
+                List<string> buildFiles = nugetLibrary.Build
+                    .Select(item => Path.Combine(nugetLibraryAbsolutePath, item.Path))
+                    .ToList();
+
+                // Add this package's assets, if there are any
+                if (nugetLibraryAssemblies.Count > 0 || buildFiles.Count > 0)
                 {
-                    continue;
-                }
-
-                // Walk up to add assemblies to all packages which directly or indirectly depend on this one.
-                var seenDependants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var queue = new Queue<string>();
-                queue.Enqueue(nugetLibrary.Name);
-                while (queue.Count > 0)
-                {
-                    var packageId = queue.Dequeue();
-
-                    if (!packageAssemblies.TryGetValue(packageId, out var assemblies))
+                    // Walk up to add assets to all packages which directly or indirectly depend on this one.
+                    var seenDependants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var queue = new Queue<string>();
+                    queue.Enqueue(nugetLibrary.Name);
+                    while (queue.Count > 0)
                     {
-                        assemblies = new List<string>();
-                        packageAssemblies.Add(packageId, assemblies);
-                    }
+                        var packageId = queue.Dequeue();
 
-                    assemblies.AddRange(nugetLibraryAssemblies);
-
-                    // Recurse though dependants
-                    if (nugetDependants.TryGetValue(packageId, out var dependants))
-                    {
-                        foreach (var dependant in dependants)
+                        if (!packageInfoBuilders.TryGetValue(packageId, out PackageInfoBuilder packageInfoBuilder))
                         {
-                            if (seenDependants.Add(dependant))
+                            packageInfoBuilder = new PackageInfoBuilder();
+                            packageInfoBuilders.Add(packageId, packageInfoBuilder);
+                        }
+
+                        packageInfoBuilder.AddCompileTimeAssemblies(nugetLibraryAssemblies);
+                        packageInfoBuilder.AddBuildFiles(buildFiles);
+
+                        // Recurse though dependants
+                        if (nugetDependants.TryGetValue(packageId, out var dependants))
+                        {
+                            foreach (var dependant in dependants)
                             {
-                                queue.Enqueue(dependant);
+                                if (seenDependants.Add(dependant))
+                                {
+                                    queue.Enqueue(dependant);
+                                }
                             }
                         }
                     }
                 }
             }
 
-            return packageAssemblies;
+            // Create the final collection
+            var packageInfos = new Dictionary<string, PackageInfo>(packageInfoBuilders.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<string, PackageInfoBuilder> packageInfoBuilder in packageInfoBuilders)
+            {
+                packageInfos.Add(packageInfoBuilder.Key, packageInfoBuilder.Value.ToPackageInfo());
+            }
+
+            return packageInfos;
         }
 
         internal HashSet<string> GetTargetFrameworkAssemblyNames()
@@ -288,5 +305,43 @@ namespace ReferenceTrimmer
 
             return null;
         }
+
+        private sealed class PackageInfoBuilder
+        {
+            private List<string> _compileTimeAssemblies;
+
+            private List<string> _buildFiles;
+
+            public void AddCompileTimeAssemblies(List<string> compileTimeAssemblies)
+            {
+                if (compileTimeAssemblies.Count == 0)
+                {
+                    return;
+                }
+
+                _compileTimeAssemblies ??= new(compileTimeAssemblies.Count);
+                _compileTimeAssemblies.AddRange(compileTimeAssemblies);
+            }
+
+            public void AddBuildFiles(List<string> buildFiles)
+            {
+                if (buildFiles.Count == 0)
+                {
+                    return;
+                }
+
+                _buildFiles ??= new(buildFiles.Count);
+                _buildFiles.AddRange(buildFiles);
+            }
+
+            public PackageInfo ToPackageInfo()
+                => new(
+                    (IReadOnlyCollection<string>)_compileTimeAssemblies ?? Array.Empty<string>(),
+                    (IReadOnlyCollection<string>)_buildFiles ?? Array.Empty<string>());
+        }
+
+        private readonly record struct PackageInfo(
+            IReadOnlyCollection<string> CompileTimeAssemblies,
+            IReadOnlyCollection<string> BuildFiles);
     }
 }
