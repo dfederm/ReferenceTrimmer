@@ -131,6 +131,14 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public void BuildPackageReference()
+    {
+        RunMSBuild(
+            projectFile: @"Library\Library.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
+
+    [TestMethod]
     public void MissingReferenceSourceTarget()
     {
         RunMSBuild(
