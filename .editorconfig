@@ -383,3 +383,5 @@ dotnet_diagnostic.IDE0079.severity = error # Remove unnecessary suppression
 dotnet_diagnostic.IDE0080.severity = error # Remove unnecessary suppression operator
 dotnet_diagnostic.IDE0100.severity = error # Remove unnecessary equality operator
 dotnet_diagnostic.IDE0110.severity = error # Remove unnecessary discard
+
+dotnet_diagnostic.CS1591.severity = suggestion # Missing XML comment for publicly visible type or member 'Type_or_Member'
