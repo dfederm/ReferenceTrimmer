@@ -3,5 +3,8 @@
   <!-- TODO: Add more overrides -->
   <PropertyGroup>
     <ReferenceTrimmerTaskAssembly Condition="'$(ReferenceTrimmerTaskAssembly)' == ''">$(MSBuildThisFileDirectory)netstandard2.0\ReferenceTrimmer.dll</ReferenceTrimmerTaskAssembly>
+
+    <!-- Disable for the NoTargets SDK since it doesn't compile anything so there's nothing to analyze -->
+    <EnableReferenceTrimmer Condition="'$(UsingMicrosoftNoTargetsSdk)' == 'true'">false</EnableReferenceTrimmer>
   </PropertyGroup>
 </Project>
