@@ -38,7 +38,7 @@
       ProjectReferences="@(_ReferenceTrimmerProjectReferences)"
       PackageReferences="@(PackageReference)"
       ProjectAssetsFile="$(ProjectAssetsFile)"
-      NuGetTargetMoniker="$(NuGetTargetMoniker)"
+      TargetFramework="$(TargetFramework)"
       RuntimeIdentifier="$(RuntimeIdentifier)"
       NuGetRestoreTargets="$(NuGetRestoreTargets)"
       TargetFrameworkDirectories="$(TargetFrameworkDirectory)" />
