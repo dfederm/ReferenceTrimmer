@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
-using NuGet.Frameworks;
 using NuGet.ProjectModel;
 using MSBuildTask = Microsoft.Build.Utilities.Task;
 
@@ -35,7 +34,7 @@ namespace ReferenceTrimmer
 
         public string ProjectAssetsFile { get; set; }
 
-        public string NuGetTargetMoniker { get; set; }
+        public string TargetFramework { get; set; }
 
         public string RuntimeIdentifier { get; set; }
 
@@ -49,7 +48,6 @@ namespace ReferenceTrimmer
             try
             {
                 HashSet<string> assemblyReferences = GetAssemblyReferences();
-                Dictionary<string, PackageInfo> packageInfos = GetPackageInfos();
                 HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
 
                 if (References != null)
@@ -120,6 +118,7 @@ namespace ReferenceTrimmer
 
                 if (PackageReferences != null)
                 {
+                    Dictionary<string, PackageInfo> packageInfos = GetPackageInfos();
                     foreach (ITaskItem packageReference in PackageReferences)
                     {
                         if (!packageInfos.TryGetValue(packageReference.ItemSpec, out PackageInfo packageInfo))
@@ -160,7 +159,7 @@ namespace ReferenceTrimmer
             var lockFile = LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
             var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
 
-            var nugetTarget = lockFile.GetTarget(NuGetFramework.Parse(NuGetTargetMoniker), RuntimeIdentifier);
+            var nugetTarget = lockFile.GetTarget(TargetFramework, RuntimeIdentifier);
             var nugetLibraries = nugetTarget.Libraries
                 .Where(nugetLibrary => nugetLibrary.Type.Equals("Package", StringComparison.OrdinalIgnoreCase))
                 .ToList();
