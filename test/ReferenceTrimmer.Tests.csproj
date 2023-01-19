@@ -10,12 +10,36 @@
     <PackageReference Include="MSTest.TestFramework" Version="3.0.2" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\src\ReferenceTrimmer.csproj" />
-    <ProjectReference Include="..\analyzer\ReferenceTrimmerAnalyzer.csproj" />
+    <ProjectReference Include="..\src\ReferenceTrimmer.csproj">
+      <OutputItemType>ReferenceTrimmerTargetPath</OutputItemType>
+    </ProjectReference>
+    <ProjectReference Include="..\analyzer\ReferenceTrimmerAnalyzer.csproj">
+      <OutputItemType>ReferenceTrimmerAnalyzerTargetPath</OutputItemType>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Content Include="TestData\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <!-- Use the task's outputs for e2e tests -->
+  <Target Name="GetReferenceTrimmerOutputs"
+          DependsOnTargets="ResolveProjectReferences">
+    <PropertyGroup>
+      <ReferenceTrimmerOutputPath>@(ReferenceTrimmerTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerOutputPath>
+      <ReferenceTrimmerAnalyzerOutputPath>@(ReferenceTrimmerAnalyzerTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerAnalyzerOutputPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerOutputPath)\**" />
+      <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerAnalyzerOutputPath)\**" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CopyReferenceTrimmerOutputs"
+          AfterTargets="AfterBuild"
+          DependsOnTargets="GetReferenceTrimmerOutputs"
+          Inputs="@(ReferenceTrimmerOutputs)"
+          Outputs="@(ReferenceTrimmerOutputs -> '$(OutputPath)\ReferenceTrimmer\%(RecursiveDir)%(Filename)%(Extension)')">
+    <Copy SourceFiles="@(ReferenceTrimmerOutputs)"
+          DestinationFiles="@(ReferenceTrimmerOutputs -> '$(OutputPath)\ReferenceTrimmer\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 </Project>
