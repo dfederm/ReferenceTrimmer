@@ -3,7 +3,7 @@
   <UsingTask TaskName="ReferenceTrimmerTask" AssemblyFile="$(ReferenceTrimmerTaskAssembly)" />
 
   <PropertyGroup>
-    <ReferenceTrimmerGetUsedAssemblyReferencesFile>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)_ReferenceTrimmer_GetUsedAssemblyReferences.txt</ReferenceTrimmerGetUsedAssemblyReferencesFile>
+    <ReferenceTrimmerGetUsedAssemblyReferencesFile>$([System.IO.Path]::GetFullPath('$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', '_ReferenceTrimmer_GetUsedAssemblyReferences.txt'))'))</ReferenceTrimmerGetUsedAssemblyReferencesFile>
     <CoreCompileDependsOn>$(CoreCompileDependsOn);DeleteReferenceTrimmerGetUsedAssemblyReferencesFile</CoreCompileDependsOn>
   </PropertyGroup>
 
