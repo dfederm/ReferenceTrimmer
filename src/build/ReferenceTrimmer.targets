@@ -22,6 +22,13 @@
           AfterTargets="AfterBuild"
           DependsOnTargets="ResolveProjectReferences">
     <ItemGroup>
+      <!--
+        Microsoft.NET.Build.Extensions may add many references to help bridge the gap with older
+        versions of .NET Framework and .NET Standard. Avoid reporting these as unused.
+      -->
+      <_ReferenceTrimmerReferences Include="@(Reference)" />
+      <_ReferenceTrimmerReferences Remove="@(_NETStandardLibraryNETFrameworkLib -> '%(FileName)')" />
+
       <_ReferenceTrimmerProjectReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ProjectReference'" />
     </ItemGroup>
 
@@ -34,7 +41,7 @@
       Condition=" '@(UsedReference)' != '' "
       MSBuildProjectFile="$(MSBuildProjectFile)"
       UsedReferences="@(UsedReference)"
-      References="@(Reference)"
+      References="@(_ReferenceTrimmerReferences)"
       ProjectReferences="@(_ReferenceTrimmerProjectReferences)"
       PackageReferences="@(PackageReference)"
       ProjectAssetsFile="$(ProjectAssetsFile)"

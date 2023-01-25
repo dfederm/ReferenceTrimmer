@@ -184,6 +184,14 @@ public sealed class E2ETests
             expectedWarnings: Array.Empty<string>());
     }
 
+    [TestMethod]
+    public void BuildExtensions()
+    {
+        RunMSBuild(
+            projectFile: @"Library/Library.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
+
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
     {
         // On Windows, try to find Visual Studio
