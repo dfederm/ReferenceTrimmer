@@ -48,6 +48,7 @@
       TargetFramework="$(TargetFramework)"
       RuntimeIdentifier="$(RuntimeIdentifier)"
       NuGetRestoreTargets="$(NuGetRestoreTargets)"
-      TargetFrameworkDirectories="$(TargetFrameworkDirectory)" />
+      TargetFrameworkDirectories="$(TargetFrameworkDirectory)"
+      NuGetPackageRoot="$(NuGetPackageRoot)" />
   </Target>
 </Project>
