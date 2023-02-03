@@ -100,7 +100,7 @@ namespace ReferenceTrimmer
 
                         if (!assemblyReferences.Contains(referenceAssemblyName))
                         {
-                            LogWarning("Reference {0} can be removed", referenceSpec);
+                            LogWarning("RT0001", "Reference {0} can be removed", referenceSpec);
                         }
                     }
                 }
@@ -113,7 +113,7 @@ namespace ReferenceTrimmer
                         if (!assemblyReferences.Contains(projectReferenceAssemblyName.Name))
                         {
                             string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
-                            LogWarning("ProjectReference {0} can be removed", referenceProjectFile);
+                            LogWarning("RT0002", "ProjectReference {0} can be removed", referenceProjectFile);
                         }
                     }
                 }
@@ -136,7 +136,7 @@ namespace ReferenceTrimmer
 
                         if (!packageInfo.CompileTimeAssemblies.Any(assemblyReferences.Contains))
                         {
-                            LogWarning("PackageReference {0} can be removed", packageReference);
+                            LogWarning("RT0003", "PackageReference {0} can be removed", packageReference);
                         }
                     }
                 }
@@ -149,7 +149,7 @@ namespace ReferenceTrimmer
             return !Log.HasLoggedErrors;
         }
 
-        private void LogWarning(string message, params object[] messageArgs) => Log.LogWarning(null, null, null, MSBuildProjectFile, 0, 0, 0, 0, message, messageArgs);
+        private void LogWarning(string code, string message, params object[] messageArgs) => Log.LogWarning(null, code, null, MSBuildProjectFile, 0, 0, 0, 0, message, messageArgs);
 
         private HashSet<string> GetAssemblyReferences() => new(UsedReferences.Select(usedReference => AssemblyName.GetAssemblyName(usedReference.ItemSpec).Name), StringComparer.OrdinalIgnoreCase);
 

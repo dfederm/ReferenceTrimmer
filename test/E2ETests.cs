@@ -12,7 +12,7 @@ public sealed class E2ETests
     private static readonly (string ExePath, string Verb) MSBuild = GetMsBuildExeAndVerb();
 
     private static readonly Regex WarningErrorRegex = new(
-        @".+: (warning|error) [\w]*: (?<message>.+) \[.+\]",
+        @".+: (warning|error) (?<message>.+) \[.+\]",
         RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
     public TestContext TestContext { get; set; }
@@ -50,7 +50,7 @@ public sealed class E2ETests
     public void UsedProjectReference()
     {
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<string>());
     }
 
@@ -58,10 +58,10 @@ public sealed class E2ETests
     public void UnusedProjectReference()
     {
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                @"ProjectReference ../Dependency/Dependency.csproj can be removed",
+                "RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed",
             });
     }
 
@@ -70,11 +70,11 @@ public sealed class E2ETests
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
-            projectFile: @"Dependency/Dependency.csproj",
+            projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<string>());
 
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<string>());
     }
 
@@ -83,14 +83,14 @@ public sealed class E2ETests
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
-            projectFile: @"Dependency/Dependency.csproj",
+            projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<string>());
 
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                @"Reference Dependency can be removed",
+                "RT0001: Reference Dependency can be removed",
             });
     }
 
@@ -98,7 +98,7 @@ public sealed class E2ETests
     public void UsedPackageReference()
     {
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<string>());
     }
 
@@ -106,7 +106,7 @@ public sealed class E2ETests
     public void UsedIndirectPackageReference()
     {
         RunMSBuild(
-            projectFile: @"WebHost/WebHost.csproj",
+            projectFile: "WebHost/WebHost.csproj",
             expectedWarnings: Array.Empty<string>());
     }
 
@@ -114,10 +114,10 @@ public sealed class E2ETests
     public void UnusedPackageReference()
     {
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                @"PackageReference Newtonsoft.Json can be removed",
+                "RT0003: PackageReference Newtonsoft.Json can be removed",
             });
     }
 
@@ -125,10 +125,10 @@ public sealed class E2ETests
     public void UnusedPackageReferenceDocDisabled()
     {
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                @"Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection",
+                "DOC001: Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection",
             });
     }
 
@@ -136,7 +136,7 @@ public sealed class E2ETests
     public void BuildPackageReference()
     {
         RunMSBuild(
-            projectFile: @"Library\Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<string>());
     }
 
@@ -144,7 +144,7 @@ public sealed class E2ETests
     public void MissingReferenceSourceTarget()
     {
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<string>());
     }
 
@@ -152,11 +152,11 @@ public sealed class E2ETests
     public void PlatformPackageConflictResolution()
     {
         RunMSBuild(
-            projectFile: @"Library/Library.csproj",
+            projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
                 // TODO: These "metapackages" should not be reported.
-                "PackageReference NETStandard.Library can be removed",
+                "RT0003: PackageReference NETStandard.Library can be removed",
             });
     }
 
@@ -164,7 +164,7 @@ public sealed class E2ETests
     public void NoTargets()
     {
         RunMSBuild(
-            projectFile: @"Project.csproj",
+            projectFile: "Project.csproj",
             expectedWarnings: Array.Empty<string>());
     }
 
