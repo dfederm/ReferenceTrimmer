@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
-using NuGet.Frameworks;
 using NuGet.ProjectModel;
 using MSBuildTask = Microsoft.Build.Utilities.Task;
 
@@ -35,7 +34,7 @@ namespace ReferenceTrimmer
 
         public string ProjectAssetsFile { get; set; }
 
-        public string NuGetTargetMoniker { get; set; }
+        public string TargetFramework { get; set; }
 
         public string RuntimeIdentifier { get; set; }
 
@@ -43,13 +42,14 @@ namespace ReferenceTrimmer
 
         public ITaskItem[] TargetFrameworkDirectories { get; set; }
 
+        public string NuGetPackageRoot { get; set; }
+
         public override bool Execute()
         {
             AppDomain.CurrentDomain.AssemblyResolve += ResolveAssembly;
             try
             {
                 HashSet<string> assemblyReferences = GetAssemblyReferences();
-                Dictionary<string, PackageInfo> packageInfos = GetPackageInfos();
                 HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
 
                 if (References != null)
@@ -80,22 +80,39 @@ namespace ReferenceTrimmer
                         var referenceHintPath = reference.GetMetadata("HintPath");
                         var referenceName = reference.GetMetadata("Name");
 
+                        string referencePath;
                         string referenceAssemblyName;
 
                         if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
                         {
+                            referencePath = referenceHintPath;
+
                             // If a hint path is given and exists, use that assembly's name.
                             referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).Name;
                         }
                         else if (!string.IsNullOrEmpty(referenceName) && File.Exists(referenceSpec))
                         {
+                            referencePath = referenceSpec;
+
                             // If a name is given and the spec is an existing file, use that assembly's name.
                             referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).Name;
                         }
                         else
                         {
+                            referencePath = null;
+
                             // The assembly name is probably just the item spec.
                             referenceAssemblyName = referenceSpec;
+                        }
+
+                        // If the reference is under the nuget package root, it's likely a Reference added in a package's props or targets.
+                        if (NuGetPackageRoot != null && referencePath != null)
+                        {
+                            referencePath = Path.GetFullPath(referencePath);
+                            if (referencePath.StartsWith(NuGetPackageRoot))
+                            {
+                                continue;
+                            }
                         }
 
                         if (!assemblyReferences.Contains(referenceAssemblyName))
@@ -120,6 +137,7 @@ namespace ReferenceTrimmer
 
                 if (PackageReferences != null)
                 {
+                    Dictionary<string, PackageInfo> packageInfos = GetPackageInfos();
                     foreach (ITaskItem packageReference in PackageReferences)
                     {
                         if (!packageInfos.TryGetValue(packageReference.ItemSpec, out PackageInfo packageInfo))
@@ -160,7 +178,7 @@ namespace ReferenceTrimmer
             var lockFile = LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
             var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
 
-            var nugetTarget = lockFile.GetTarget(NuGetFramework.Parse(NuGetTargetMoniker), RuntimeIdentifier);
+            var nugetTarget = lockFile.GetTarget(TargetFramework, RuntimeIdentifier);
             var nugetLibraries = nugetTarget.Libraries
                 .Where(nugetLibrary => nugetLibrary.Type.Equals("Package", StringComparison.OrdinalIgnoreCase))
                 .ToList();
