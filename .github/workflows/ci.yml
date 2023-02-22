@@ -44,9 +44,6 @@ jobs:
           path: ./TestResults
         if: ${{ always() }} # Always run this step even on failure
 
-      - name: Pack
-        run: dotnet pack --configuration Release --no-restore --no-build --output ./artifacts
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
