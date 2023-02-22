@@ -10,10 +10,10 @@
     <PackageReference Include="MSTest.TestFramework" Version="3.0.2" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\src\ReferenceTrimmer.csproj">
-      <OutputItemType>ReferenceTrimmerTargetPath</OutputItemType>
+    <ProjectReference Include="..\Tasks\ReferenceTrimmer.Tasks.csproj">
+      <OutputItemType>ReferenceTrimmerTasksTargetPath</OutputItemType>
     </ProjectReference>
-    <ProjectReference Include="..\analyzer\ReferenceTrimmerAnalyzer.csproj">
+    <ProjectReference Include="..\Analyzer\ReferenceTrimmer.Analyzer.csproj">
       <OutputItemType>ReferenceTrimmerAnalyzerTargetPath</OutputItemType>
     </ProjectReference>
   </ItemGroup>
@@ -22,16 +22,17 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <!-- Use the task's outputs for e2e tests -->
+  <!-- Use the task's outputs for e2e tests. TODO: Use the nupkg itself for a real e2e test -->
   <Target Name="GetReferenceTrimmerOutputs"
           DependsOnTargets="ResolveProjectReferences">
     <PropertyGroup>
-      <ReferenceTrimmerOutputPath>@(ReferenceTrimmerTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerOutputPath>
+      <ReferenceTrimmerTasksOutputPath>@(ReferenceTrimmerTasksTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerTasksOutputPath>
       <ReferenceTrimmerAnalyzerOutputPath>@(ReferenceTrimmerAnalyzerTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerAnalyzerOutputPath>
     </PropertyGroup>
     <ItemGroup>
-      <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerOutputPath)\**" />
+      <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerTasksOutputPath)\**" />
       <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerAnalyzerOutputPath)\**" />
+      <ReferenceTrimmerOutputs Include="..\Package\build\**" />
     </ItemGroup>
   </Target>
   <Target Name="CopyReferenceTrimmerOutputs"

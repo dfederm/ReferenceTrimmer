@@ -1,10 +1,8 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.2.32317.152
+VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer", "src\ReferenceTrimmer.csproj", "{D0410117-6DF9-4E70-91BD-312FEDD51299}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8ED5F7AF-CA4B-4D0E-B5C0-5AF98E065315}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
@@ -17,15 +15,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		version.json = version.json
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Tests", "test\ReferenceTrimmer.Tests.csproj", "{9F80F05C-91EA-4D15-B96C-128E7E5E93CB}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{49A2BF83-6DB4-4DB9-9B49-4237731A6627}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{16768D5E-9929-45B8-9222-A4A83C40B005}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Tasks", "src\Tasks\ReferenceTrimmer.Tasks.csproj", "{70B8B49A-03B2-48DE-ACB4-C801F1201C1E}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D49A052F-6C94-4B71-81D4-4D1871858F6D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Analyzer", "src\Analyzer\ReferenceTrimmer.Analyzer.csproj", "{6E7F5033-F180-4A47-9552-96C3DC3FDA06}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "analyzer", "analyzer", "{20D61165-FED7-496A-9F83-AAD2CA32CFA5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.E2ETests", "src\E2ETests\ReferenceTrimmer.E2ETests.csproj", "{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmerAnalyzer", "analyzer\ReferenceTrimmerAnalyzer.csproj", "{2C295A5A-5889-494B-8893-66381B000102}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReferenceTrimmer.Package", "src\Package\ReferenceTrimmer.Package.csproj", "{4C15C9AF-25D5-4725-BFB9-5C04533420AB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,28 +31,33 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D0410117-6DF9-4E70-91BD-312FEDD51299}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D0410117-6DF9-4E70-91BD-312FEDD51299}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D0410117-6DF9-4E70-91BD-312FEDD51299}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D0410117-6DF9-4E70-91BD-312FEDD51299}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2C295A5A-5889-494B-8893-66381B000102}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2C295A5A-5889-494B-8893-66381B000102}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2C295A5A-5889-494B-8893-66381B000102}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2C295A5A-5889-494B-8893-66381B000102}.Release|Any CPU.Build.0 = Release|Any CPU
+		{70B8B49A-03B2-48DE-ACB4-C801F1201C1E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70B8B49A-03B2-48DE-ACB4-C801F1201C1E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70B8B49A-03B2-48DE-ACB4-C801F1201C1E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70B8B49A-03B2-48DE-ACB4-C801F1201C1E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E7F5033-F180-4A47-9552-96C3DC3FDA06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E7F5033-F180-4A47-9552-96C3DC3FDA06}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E7F5033-F180-4A47-9552-96C3DC3FDA06}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E7F5033-F180-4A47-9552-96C3DC3FDA06}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C15C9AF-25D5-4725-BFB9-5C04533420AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C15C9AF-25D5-4725-BFB9-5C04533420AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C15C9AF-25D5-4725-BFB9-5C04533420AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C15C9AF-25D5-4725-BFB9-5C04533420AB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{D0410117-6DF9-4E70-91BD-312FEDD51299} = {D49A052F-6C94-4B71-81D4-4D1871858F6D}
-		{9F80F05C-91EA-4D15-B96C-128E7E5E93CB} = {16768D5E-9929-45B8-9222-A4A83C40B005}
-		{2C295A5A-5889-494B-8893-66381B000102} = {20D61165-FED7-496A-9F83-AAD2CA32CFA5}
+		{70B8B49A-03B2-48DE-ACB4-C801F1201C1E} = {49A2BF83-6DB4-4DB9-9B49-4237731A6627}
+		{6E7F5033-F180-4A47-9552-96C3DC3FDA06} = {49A2BF83-6DB4-4DB9-9B49-4237731A6627}
+		{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA} = {49A2BF83-6DB4-4DB9-9B49-4237731A6627}
+		{4C15C9AF-25D5-4725-BFB9-5C04533420AB} = {49A2BF83-6DB4-4DB9-9B49-4237731A6627}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {BD73DFDB-4A6B-49B2-B544-7F071454A46A}
+		SolutionGuid = {1E4FD4B2-8674-4378-AAC7-9C14865D333A}
 	EndGlobalSection
 EndGlobal

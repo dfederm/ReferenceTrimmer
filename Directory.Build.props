@@ -2,6 +2,8 @@
 <Project>
 
   <PropertyGroup>
+    <RepoRoot>$(MSBuildThisFileDirectory.TrimEnd('\\'))</RepoRoot>
+
     <!-- Be strict with warnings -->
     <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

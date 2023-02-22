@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.Build.NoTargets/3.7.0">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <PackageId>ReferenceTrimmer</PackageId>
+    <IsTool>true</IsTool>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);GetMyPackageFiles</TargetsForTfmSpecificContentInPackage>
+    <IncludeSymbols>false</IncludeSymbols>
+    <PackageOutputPath>$(RepoRoot)\artifacts</PackageOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Analyzer\ReferenceTrimmer.Analyzer.csproj"
+                      OutputItemType="ReferenceTrimmerOutputGroup"
+                      PackagePath="analyzers/dotnet" />
+    <ProjectReference Include="..\Tasks\ReferenceTrimmer.Tasks.csproj"
+                      OutputItemType="ReferenceTrimmerOutputGroup"
+                      PackagePath="build" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="build\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>build</PackagePath>
+    </Content>
+    <Content Include="buildMultiTargeting\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>buildMultiTargeting</PackagePath>
+    </Content>
+    <Content Update="tools\*.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>tools</PackagePath>
+    </Content>
+  </ItemGroup>
+  <Target Name="GetMyPackageFiles" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="%(ReferenceTrimmerOutputGroup.RootDir)%(ReferenceTrimmerOutputGroup.Directory)*.dll"
+                              Pack="true"
+                              PackagePath="%(ReferenceTrimmerOutputGroup.PackagePath)" />
+    </ItemGroup>
+  </Target>
+</Project>
