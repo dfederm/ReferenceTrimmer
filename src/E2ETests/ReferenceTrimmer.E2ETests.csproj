@@ -10,11 +10,8 @@
     <PackageReference Include="MSTest.TestFramework" Version="3.0.2" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Tasks\ReferenceTrimmer.Tasks.csproj">
-      <OutputItemType>ReferenceTrimmerTasksTargetPath</OutputItemType>
-    </ProjectReference>
-    <ProjectReference Include="..\Analyzer\ReferenceTrimmer.Analyzer.csproj">
-      <OutputItemType>ReferenceTrimmerAnalyzerTargetPath</OutputItemType>
+    <ProjectReference Include="..\Package\ReferenceTrimmer.Package.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
@@ -22,25 +19,21 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <!-- Use the task's outputs for e2e tests. TODO: Use the nupkg itself for a real e2e test -->
-  <Target Name="GetReferenceTrimmerOutputs"
-          DependsOnTargets="ResolveProjectReferences">
-    <PropertyGroup>
-      <ReferenceTrimmerTasksOutputPath>@(ReferenceTrimmerTasksTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerTasksOutputPath>
-      <ReferenceTrimmerAnalyzerOutputPath>@(ReferenceTrimmerAnalyzerTargetPath -> '%(RootDir)%(Directory)')</ReferenceTrimmerAnalyzerOutputPath>
-    </PropertyGroup>
+  <Target Name="GetReferenceTrimmerPackage" DependsOnTargets="ResolveProjectReferences" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
-      <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerTasksOutputPath)\**" />
-      <ReferenceTrimmerOutputs Include="$(ReferenceTrimmerAnalyzerOutputPath)\**" />
-      <ReferenceTrimmerOutputs Include="..\Package\build\**" />
+      <Content Include="$(RepoRoot)\artifacts\*.nupkg">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
     </ItemGroup>
   </Target>
-  <Target Name="CopyReferenceTrimmerOutputs"
-          AfterTargets="AfterBuild"
-          DependsOnTargets="GetReferenceTrimmerOutputs"
-          Inputs="@(ReferenceTrimmerOutputs)"
-          Outputs="@(ReferenceTrimmerOutputs -> '$(OutputPath)\ReferenceTrimmer\%(RecursiveDir)%(Filename)%(Extension)')">
-    <Copy SourceFiles="@(ReferenceTrimmerOutputs)"
-          DestinationFiles="@(ReferenceTrimmerOutputs -> '$(OutputPath)\ReferenceTrimmer\%(RecursiveDir)%(Filename)%(Extension)')" />
+  <Target Name="FixNuGetConfigPaths" AfterTargets="CopyFilesToOutputDirectory">
+    <XmlPoke
+        XmlInputPath="$(OutDir)\TestData\NuGet.Config"
+        Query="/configuration/config/add[@key='globalPackagesFolder']/@value"
+        Value="../Packages" />
+    <XmlPoke
+        XmlInputPath="$(OutDir)\TestData\NuGet.Config"
+        Query="/configuration/packageSources/add[@key='e2e-tests']/@value"
+        Value=".." />
   </Target>
 </Project>

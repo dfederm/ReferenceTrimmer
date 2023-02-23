@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -16,35 +15,6 @@ public sealed class E2ETests
         RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
     public TestContext TestContext { get; set; }
-
-    [ClassInitialize]
-    public static void ClassInitialize(TestContext testContext)
-    {
-        string testOutputDir = Path.GetFullPath(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
-
-        // Write some Directory.Build.(props|targets) to avoid unexpected inheritance and add the build files.
-        File.WriteAllText(
-            Path.Combine(testContext.TestRunDirectory, "Directory.Build.props"),
-            $@"<Project>
-  <PropertyGroup>
-    <ReferenceTrimmerTaskAssembly>{testOutputDir}/ReferenceTrimmer/ReferenceTrimmer.Tasks.dll</ReferenceTrimmerTaskAssembly>
-    <!-- Per https://github.com/dotnet/roslyn/issues/66188 /doc param is required for accurate results -->
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
-    <!-- Ensure always instrumented binaries are used for code coverage -->
-    <UseSharedCompilation>false</UseSharedCompilation>
-  </PropertyGroup>
-  <ItemGroup>
-    <Analyzer Include=""{testOutputDir}/ReferenceTrimmer/ReferenceTrimmer.Analyzer.dll""/>
-  </ItemGroup>
-  <Import Project=""{testOutputDir}/ReferenceTrimmer/ReferenceTrimmer.props"" />
-</Project>");
-        File.WriteAllText(
-            Path.Combine(testContext.TestRunDirectory, "Directory.Build.targets"),
-            $@"<Project>
-  <Import Project=""{testOutputDir}/ReferenceTrimmer/ReferenceTrimmer.targets"" />
-</Project>");
-    }
 
     [TestMethod]
     public void UsedProjectReference()
@@ -270,15 +240,9 @@ public sealed class E2ETests
 
     private void RunMSBuild(string projectFile, string[] expectedWarnings)
     {
-        // Copy to the test run dir to avoid cross-test contamination
-        var testDataExecPath = Path.Combine(TestContext.TestRunDirectory, TestContext.TestName);
-        if (!Directory.Exists(testDataExecPath))
-        {
-            var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext.TestName));
-            DirectoryCopy(testDataSourcePath, testDataExecPath);
-        }
+        var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext.TestName));
 
-        string logDirBase = Path.Combine(testDataExecPath, "Logs");
+        string logDirBase = Path.Combine(testDataSourcePath, "Logs");
         string binlogFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".binlog");
         string warningsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".warnings.log");
         string errorsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".errors.log");
@@ -288,7 +252,7 @@ public sealed class E2ETests
             {
                 FileName = MSBuild.ExePath,
                 Arguments = $"{MSBuild.Verb} \"{projectFile}\" -restore -nologo -nodeReuse:false -noAutoResponse -bl:\"{binlogFilePath}\" -flp1:logfile=\"{errorsFilePath}\";errorsonly -flp2:logfile=\"{warningsFilePath}\";warningsonly",
-                WorkingDirectory = testDataExecPath,
+                WorkingDirectory = testDataSourcePath,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,

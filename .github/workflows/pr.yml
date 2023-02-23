@@ -21,10 +21,10 @@ jobs:
         uses: actions/setup-dotnet@v2
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore -bl:logs/restore.binlog
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore -bl:logs/build.binlog
 
       - name: Test
         run: dotnet test --configuration Release --no-build --logger trx --results-directory TestResults --collect:"Code Coverage;Format=Cobertura"
@@ -40,6 +40,13 @@ jobs:
         with:
           name: test-results
           path: ./TestResults
+        if: ${{ always() }} # Always run this step even on failure
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: logs
+          path: ./logs
         if: ${{ always() }} # Always run this step even on failure
 
       - name: Upload artifacts
