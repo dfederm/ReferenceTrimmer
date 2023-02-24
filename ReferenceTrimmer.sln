@@ -23,7 +23,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Analyzer",
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.E2ETests", "src\E2ETests\ReferenceTrimmer.E2ETests.csproj", "{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReferenceTrimmer.Package", "src\Package\ReferenceTrimmer.Package.csproj", "{4C15C9AF-25D5-4725-BFB9-5C04533420AB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Package", "src\Package\ReferenceTrimmer.Package.csproj", "{4C15C9AF-25D5-4725-BFB9-5C04533420AB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

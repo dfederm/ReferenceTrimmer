@@ -1,26 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
-  <UsingTask TaskName="ReferenceTrimmerTask" AssemblyFile="$(ReferenceTrimmerTaskAssembly)" />
+  <UsingTask TaskName="CollectDeclaredReferencesTask" AssemblyFile="$(ReferenceTrimmerTasksAssembly)" />
 
   <PropertyGroup>
-    <ReferenceTrimmerGetUsedAssemblyReferencesFile>$([System.IO.Path]::GetFullPath('$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', '_ReferenceTrimmer_GetUsedAssemblyReferences.txt'))'))</ReferenceTrimmerGetUsedAssemblyReferencesFile>
-    <CoreCompileDependsOn>$(CoreCompileDependsOn);DeleteReferenceTrimmerGetUsedAssemblyReferencesFile</CoreCompileDependsOn>
+    <CoreCompileDependsOn Condition="'$(EnableReferenceTrimmer)' != 'false'">$(CoreCompileDependsOn);CollectDeclaredReferences</CoreCompileDependsOn>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(EnableReferenceTrimmer)' != 'false'">
-    <!-- https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Using%20Additional%20Files.md#in-a-project-file -->
-    <AdditionalFiles Include="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)" />
-    <FileWrites Include="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)" />
-  </ItemGroup>
-
-  <Target Name="DeleteReferenceTrimmerGetUsedAssemblyReferencesFile" Condition="'$(EnableReferenceTrimmer)' != 'false'" BeforeTargets="BeforeBuild" >
-    <Delete Files="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)" Condition="Exists('$(ReferenceTrimmerGetUsedAssemblyReferencesFile)')" />
-  </Target>
-
-  <Target Name="VerifyReferences"
-          Condition="'$(EnableReferenceTrimmer)' != 'false'"
-          AfterTargets="AfterBuild"
-          DependsOnTargets="ResolveProjectReferences">
+  <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveProjectReferences">
+    <PropertyGroup>
+      <_ReferenceTrimmerDeclaredReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_DeclaredReferences.json</_ReferenceTrimmerDeclaredReferencesFile>
+    </PropertyGroup>
     <ItemGroup>
       <!--
         Microsoft.NET.Build.Extensions may add many references to help bridge the gap with older
@@ -32,15 +21,9 @@
       <_ReferenceTrimmerProjectReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ProjectReference'" />
     </ItemGroup>
 
-    <ReadLinesFromFile File="$(ReferenceTrimmerGetUsedAssemblyReferencesFile)">
-      <Output TaskParameter="Lines" ItemName="UsedReference" />
-    </ReadLinesFromFile>
-    <Warning Text="Skipping ReferenceTrimmerTask due to empty file $(ReferenceTrimmerGetUsedAssemblyReferencesFile)" Condition=" '@(UsedReference)' == '' "/>
-
-    <ReferenceTrimmerTask
-      Condition=" '@(UsedReference)' != '' "
+    <CollectDeclaredReferencesTask
+      OutputFile="$(_ReferenceTrimmerDeclaredReferencesFile)"
       MSBuildProjectFile="$(MSBuildProjectFile)"
-      UsedReferences="@(UsedReference)"
       References="@(_ReferenceTrimmerReferences)"
       ProjectReferences="@(_ReferenceTrimmerProjectReferences)"
       PackageReferences="@(PackageReference)"
@@ -50,5 +33,11 @@
       NuGetRestoreTargets="$(NuGetRestoreTargets)"
       TargetFrameworkDirectories="$(TargetFrameworkDirectory)"
       NuGetPackageRoot="$(NuGetPackageRoot)" />
+
+    <ItemGroup>
+      <!-- https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Using%20Additional%20Files.md#in-a-project-file -->
+      <AdditionalFiles Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
+      <FileWrites Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
+    </ItemGroup>
   </Target>
 </Project>
