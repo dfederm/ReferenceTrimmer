@@ -16,6 +16,16 @@ public sealed class E2ETests
 
     public TestContext TestContext { get; set; }
 
+    [ClassInitialize]
+    public static void ClassInitialize(TestContext _)
+    {
+        // Delete the package cache to avoid reusing old content
+        if (Directory.Exists("Packages"))
+        {
+            Directory.Delete("Packages", recursive: true);
+        }
+    }
+
     [TestMethod]
     public void UsedProjectReference()
     {
@@ -98,7 +108,7 @@ public sealed class E2ETests
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                "DOC001: Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection",
+                "RT0000: Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection",
             });
     }
 
@@ -246,6 +256,8 @@ public sealed class E2ETests
         string binlogFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".binlog");
         string warningsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".warnings.log");
         string errorsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".errors.log");
+
+        TestContext.WriteLine($"Log directory: {logDirBase}");
 
         Process process = Process.Start(
             new ProcessStartInfo

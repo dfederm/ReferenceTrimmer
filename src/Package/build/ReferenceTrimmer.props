@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
-  <!-- TODO: Add more overrides -->
   <PropertyGroup>
-    <ReferenceTrimmerTaskAssembly Condition="'$(ReferenceTrimmerTaskAssembly)' == ''">$(MSBuildThisFileDirectory)ReferenceTrimmer.Tasks.dll</ReferenceTrimmerTaskAssembly>
-
-    <!-- Disable for the NoTargets SDK since it doesn't compile anything so there's nothing to analyze -->
-    <EnableReferenceTrimmer Condition="'$(UsingMicrosoftNoTargetsSdk)' == 'true'">false</EnableReferenceTrimmer>
+    <ReferenceTrimmerTasksAssembly Condition="'$(ReferenceTrimmerTasksAssembly)' == ''">$(MSBuildThisFileDirectory)ReferenceTrimmer.Tasks.dll</ReferenceTrimmerTasksAssembly>
   </PropertyGroup>
 </Project>
