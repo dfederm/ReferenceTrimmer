@@ -81,7 +81,6 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     var referenceSpec = reference.ItemSpec;
                     var referenceHintPath = reference.GetMetadata("HintPath");
-                    var referenceName = reference.GetMetadata("Name");
 
                     string referencePath;
                     string referenceAssemblyName;
@@ -93,11 +92,11 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         // If a hint path is given and exists, use that assembly's name.
                         referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).Name;
                     }
-                    else if (!string.IsNullOrEmpty(referenceName) && File.Exists(referenceSpec))
+                    else if (File.Exists(referenceSpec))
                     {
                         referencePath = referenceSpec;
 
-                        // If a name is given and the spec is an existing file, use that assembly's name.
+                        // If the spec is an existing file, use that assembly's name.
                         referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).Name;
                     }
                     else
