@@ -46,7 +46,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UsedReference()
+    public void UsedReferenceHintPath()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
@@ -59,7 +59,20 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedReference()
+    public void UsedReferenceItemSpec()
+    {
+        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        RunMSBuild(
+            projectFile: "Dependency/Dependency.csproj",
+            expectedWarnings: Array.Empty<string>());
+
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<string>());
+    }
+
+    [TestMethod]
+    public void UnusedReferenceHintPath()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
@@ -71,6 +84,24 @@ public sealed class E2ETests
             expectedWarnings: new[]
             {
                 "RT0001: Reference Dependency can be removed",
+            });
+    }
+
+    [TestMethod]
+    public void UnusedReferenceItemSpec()
+    {
+        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        RunMSBuild(
+            projectFile: "Dependency/Dependency.csproj",
+            expectedWarnings: Array.Empty<string>());
+
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                OperatingSystem.IsWindows()
+                    ? @"RT0001: Reference ..\Dependency\bin\Debug\net472\\Dependency.dll can be removed"
+                    : @"RT0001: Reference ../Dependency/bin/Debug/net472/Dependency.dll can be removed",
             });
     }
 
