@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.Json;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
@@ -156,10 +155,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 }
             }
 
-            using (FileStream stream = File.Create(OutputFile))
-            {
-                JsonSerializer.Serialize(stream, new DeclaredReferences(declaredReferences));
-            }
+            new DeclaredReferences(declaredReferences).SaveToFile(OutputFile);
         }
         finally
         {
