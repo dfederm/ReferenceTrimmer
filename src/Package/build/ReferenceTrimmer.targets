@@ -8,7 +8,7 @@
 
   <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveProjectReferences">
     <PropertyGroup>
-      <_ReferenceTrimmerDeclaredReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_DeclaredReferences.json</_ReferenceTrimmerDeclaredReferencesFile>
+      <_ReferenceTrimmerDeclaredReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_DeclaredReferences.tsv</_ReferenceTrimmerDeclaredReferencesFile>
     </PropertyGroup>
     <ItemGroup>
       <!--

@@ -1,6 +1,5 @@
 ﻿using System.Collections.Immutable;
 using System.Reflection;
-using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using ReferenceTrimmer.Shared;
@@ -10,7 +9,7 @@ namespace ReferenceTrimmer.Analyzer;
 [DiagnosticAnalyzer(LanguageNames.CSharp, LanguageNames.VisualBasic)]
 public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 {
-    private const string DeclaredReferencesFileName = "_ReferenceTrimmer_DeclaredReferences.json";
+    private const string DeclaredReferencesFileName = "_ReferenceTrimmer_DeclaredReferences.tsv";
 
     private static readonly DiagnosticDescriptor RT0000Descriptor = new(
         "RT0000",
@@ -146,7 +145,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         {
             if (Path.GetFileName(additionalText.Path).Equals(DeclaredReferencesFileName, StringComparison.Ordinal))
             {
-                return JsonSerializer.Deserialize<DeclaredReferences>(File.ReadAllText(additionalText.Path));
+                return DeclaredReferences.ReadFromFile(additionalText.Path);
             }
         }
 
