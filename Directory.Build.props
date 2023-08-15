@@ -3,6 +3,7 @@
 
   <PropertyGroup>
     <RepoRoot>$(MSBuildThisFileDirectory.TrimEnd('\\'))</RepoRoot>
+    <Nullable>Enable</Nullable>
 
     <!-- Be strict with warnings -->
     <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>

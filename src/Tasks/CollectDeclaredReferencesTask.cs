@@ -23,28 +23,28 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
     };
 
     [Required]
-    public string OutputFile { get; set; }
+    public string? OutputFile { get; set; }
 
     [Required]
-    public string MSBuildProjectFile { get; set; }
+    public string? MSBuildProjectFile { get; set; }
 
-    public ITaskItem[] References { get; set; }
+    public ITaskItem[]? References { get; set; }
 
-    public ITaskItem[] ProjectReferences { get; set; }
+    public ITaskItem[]? ProjectReferences { get; set; }
 
-    public ITaskItem[] PackageReferences { get; set; }
+    public ITaskItem[]? PackageReferences { get; set; }
 
-    public string ProjectAssetsFile { get; set; }
+    public string? ProjectAssetsFile { get; set; }
 
-    public string TargetFramework { get; set; }
+    public string? TargetFramework { get; set; }
 
-    public string RuntimeIdentifier { get; set; }
+    public string? RuntimeIdentifier { get; set; }
 
-    public string NuGetRestoreTargets { get; set; }
+    public string? NuGetRestoreTargets { get; set; }
 
-    public ITaskItem[] TargetFrameworkDirectories { get; set; }
+    public ITaskItem[]? TargetFrameworkDirectories { get; set; }
 
-    public string NuGetPackageRoot { get; set; }
+    public string? NuGetPackageRoot { get; set; }
 
     public override bool Execute()
     {
@@ -58,7 +58,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
                 foreach (ITaskItem reference in References)
                 {
-                    // Ignore implicity defined references (references which are SDK-provided)
+                    // Ignore implicitly defined references (references which are SDK-provided)
                     if (reference.GetMetadata("IsImplicitlyDefined").Equals("true", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
@@ -81,7 +81,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     var referenceSpec = reference.ItemSpec;
                     var referenceHintPath = reference.GetMetadata("HintPath");
 
-                    string referencePath;
+                    string? referencePath;
                     string referenceAssemblyName;
 
                     if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
@@ -155,7 +155,10 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 }
             }
 
-            new DeclaredReferences(declaredReferences).SaveToFile(OutputFile);
+            if (OutputFile is not null)
+            {
+                new DeclaredReferences(declaredReferences).SaveToFile(OutputFile);
+            }
         }
         finally
         {
@@ -279,18 +282,21 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 }
 
                 XDocument frameworkList = XDocument.Load(frameworkListPath);
-                foreach (XElement file in frameworkList.Root.Elements("File"))
+                if (frameworkList.Root is not null)
                 {
-                    string type = file.Attribute("Type")?.Value;
-                    if (type?.Equals("Analyzer", StringComparison.OrdinalIgnoreCase) ?? false)
+                    foreach (XElement file in frameworkList.Root.Elements("File"))
                     {
-                        continue;
-                    }
+                        string? type = file.Attribute("Type")?.Value;
+                        if (type?.Equals("Analyzer", StringComparison.OrdinalIgnoreCase) ?? false)
+                        {
+                            continue;
+                        }
 
-                    string assemblyName = file.Attribute("AssemblyName")?.Value;
-                    if (!string.IsNullOrEmpty(assemblyName))
-                    {
-                        targetFrameworkAssemblyNames.Add(assemblyName);
+                        string? assemblyName = file.Attribute("AssemblyName")?.Value;
+                        if (!string.IsNullOrEmpty(assemblyName))
+                        {
+                            targetFrameworkAssemblyNames.Add(assemblyName!);
+                        }
                     }
                 }
             }
@@ -302,13 +308,13 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
     /// <summary>
     /// Assembly resolution needed for parsing the lock file, needed if the version the task depends on is a different version than MSBuild's
     /// </summary>
-    private Assembly ResolveAssembly(object sender, ResolveEventArgs args)
+    private Assembly? ResolveAssembly(object sender, ResolveEventArgs args)
     {
         AssemblyName assemblyName = new(args.Name);
 
         if (NugetAssemblies.Contains(assemblyName.Name))
         {
-            string nugetProjectModelFile = Path.Combine(Path.GetDirectoryName(NuGetRestoreTargets), assemblyName.Name + ".dll");
+            string nugetProjectModelFile = Path.Combine(Path.GetDirectoryName(NuGetRestoreTargets)!, assemblyName.Name + ".dll");
             if (File.Exists(nugetProjectModelFile))
             {
                 return Assembly.LoadFrom(nugetProjectModelFile);
@@ -320,9 +326,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     private sealed class PackageInfoBuilder
     {
-        private List<string> _compileTimeAssemblies;
-
-        private List<string> _buildFiles;
+        private List<string>? _compileTimeAssemblies;
+        private List<string>? _buildFiles;
 
         public void AddCompileTimeAssemblies(List<string> compileTimeAssemblies)
         {
@@ -348,8 +353,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
         public PackageInfo ToPackageInfo()
             => new(
-                (IReadOnlyCollection<string>)_compileTimeAssemblies ?? Array.Empty<string>(),
-                (IReadOnlyCollection<string>)_buildFiles ?? Array.Empty<string>());
+                (IReadOnlyCollection<string>?)_compileTimeAssemblies ?? Array.Empty<string>(),
+                (IReadOnlyCollection<string>?)_buildFiles ?? Array.Empty<string>());
     }
 
     private readonly record struct PackageInfo(
