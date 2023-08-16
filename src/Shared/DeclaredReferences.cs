@@ -43,7 +43,7 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
         using FileStream stream = File.OpenRead(filePath);
         using StreamReader reader = new(stream);
 
-        string line;
+        string? line;
         while ((line = reader.ReadLine()) != null)
         {
             string[] parts = line.Split(FieldDelimiters, 3);

@@ -14,7 +14,7 @@ public sealed class E2ETests
         @".+: (warning|error) (?<message>.+) \[.+\]",
         RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
-    public TestContext TestContext { get; set; }
+    public TestContext? TestContext { get; set; }
 
     [ClassInitialize]
     public static void ClassInitialize(TestContext _)
@@ -217,11 +217,11 @@ public sealed class E2ETests
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             // When running from a developer command prompt, Visual Studio can be found under VSINSTALLDIR
-            string vsInstallDir = Environment.GetEnvironmentVariable("VSINSTALLDIR");
+            string? vsInstallDir = Environment.GetEnvironmentVariable("VSINSTALLDIR");
             if (string.IsNullOrEmpty(vsInstallDir))
             {
                 // When running Visual Studio can be found under VSAPPIDDIR
-                string vsAppIdeDir = Environment.GetEnvironmentVariable("VSAPPIDDIR");
+                string? vsAppIdeDir = Environment.GetEnvironmentVariable("VSAPPIDDIR");
                 if (!string.IsNullOrEmpty(vsAppIdeDir))
                 {
                     vsInstallDir = Path.Combine(vsAppIdeDir, "..", "..");
@@ -281,16 +281,16 @@ public sealed class E2ETests
 
     private void RunMSBuild(string projectFile, string[] expectedWarnings)
     {
-        var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext.TestName));
+        var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext?.TestName ?? string.Empty));
 
         string logDirBase = Path.Combine(testDataSourcePath, "Logs");
         string binlogFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".binlog");
         string warningsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".warnings.log");
         string errorsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".errors.log");
 
-        TestContext.WriteLine($"Log directory: {logDirBase}");
+        TestContext?.WriteLine($"Log directory: {logDirBase}");
 
-        Process process = Process.Start(
+        Process? process = Process.Start(
             new ProcessStartInfo
             {
                 FileName = MSBuild.ExePath,
@@ -301,6 +301,7 @@ public sealed class E2ETests
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             });
+        Assert.IsNotNull(process);
 
         string stdOut = process.StandardOutput.ReadToEnd();
         string stdErr = process.StandardError.ReadToEnd();
