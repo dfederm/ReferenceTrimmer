@@ -2,13 +2,14 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReferenceTrimmer.Loggers.MSVC;
 
 namespace ReferenceTrimmer.Tests;
 
 [TestClass]
 public sealed class E2ETests
 {
-    private readonly record struct Warning(string Message, string Project);
+    private readonly record struct Warning(string Message, string Project, IEnumerable<string>? AltMessages = null);
 
     private static readonly (string ExePath, string Verb) MSBuild = GetMsBuildExeAndVerb();
 
@@ -29,17 +30,17 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UsedProjectReference()
+    public Task UsedProjectReference()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedProjectReference()
+    public Task UnusedProjectReference()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -48,17 +49,17 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedProjectReferenceNoWarn()
+    public Task UnusedProjectReferenceNoWarn()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedTransitiveProjectReference()
+    public Task UnusedTransitiveProjectReference()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -68,9 +69,9 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedDirectAndTransitiveProjectReference()
+    public Task UnusedDirectAndTransitiveProjectReference()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -81,40 +82,40 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UsedReferenceHintPath()
+    public async Task UsedReferenceHintPath()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UsedReferenceItemSpec()
+    public async Task UsedReferenceItemSpec()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedReferenceHintPath()
+    public async Task UnusedReferenceHintPath()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -123,71 +124,77 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedReferenceHintPathNoWarn()
+    public async Task UnusedReferenceHintPathNoWarn()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedReferenceItemSpec()
+    public async Task UnusedReferenceItemSpec()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
                 new Warning(
                     OperatingSystem.IsWindows()
-                        ? @"RT0001: Reference ..\Dependency\bin\Debug\net472\\Dependency.dll can be removed"
-                        : @"RT0001: Reference ../Dependency/bin/Debug/net472/Dependency.dll can be removed",
-                    "Library/Library.csproj"),
+                        ? @"RT0001: Reference ..\Dependency\bin\x64\Debug\net472\\Dependency.dll can be removed"
+                        : @"RT0001: Reference ../Dependency/bin/x64/Debug/net472/Dependency.dll can be removed",
+                    "Library/Library.csproj",
+                    new[]
+                    {
+                        // Alt: Can leave out 'x64' path segment on VS or Linux.
+                        @"RT0001: Reference ..\Dependency\bin\Debug\net472\\Dependency.dll can be removed",
+                        @"RT0001: Reference ../Dependency/bin/Debug/net472/Dependency.dll can be removed",
+                    }),
             });
     }
 
     [TestMethod]
-    public void UnusedReferenceItemSpecNoWarn()
+    public async Task UnusedReferenceItemSpecNoWarn()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UsedPackageReference()
+    public Task UsedPackageReference()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UsedIndirectPackageReference()
+    public Task UsedIndirectPackageReference()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "WebHost/WebHost.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedPackageReference()
+    public Task UnusedPackageReference()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -196,17 +203,17 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedPackageReferenceNoWarn()
+    public Task UnusedPackageReferenceNoWarn()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedPackageReferenceDocDisabled()
+    public Task UnusedPackageReferenceDocDisabled()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -215,25 +222,25 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void BuildPackageReference()
+    public Task BuildPackageReference()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void MissingReferenceSourceTarget()
+    public Task MissingReferenceSourceTarget()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void PlatformPackageConflictResolution()
+    public Task PlatformPackageConflictResolution()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -243,47 +250,47 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void NoTargets()
+    public Task NoTargets()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Project.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void TargetFrameworkWithOs()
+    public Task TargetFrameworkWithOs()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void AbsoluteIntermediateOutputPath()
+    public Task AbsoluteIntermediateOutputPath()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void BuildExtensions()
+    public Task BuildExtensions()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void ReferenceInPackage()
+    public Task ReferenceInPackage()
     {
-        RunMSBuild(
+        return RunMSBuildAsync(
             projectFile: "Tests/Tests.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void LegacyStyleProject()
+    public async Task LegacyStyleProject()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -291,9 +298,77 @@ public sealed class E2ETests
             return;
         }
 
-        RunMSBuild(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
+    public async Task UnusedWinSdkImportLibrary()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.Inconclusive("This test only applies to Windows");
+            return;
+        }
+
+        await RunMSBuildAsync(
+            projectFile: "App/App.vcxproj",
+            expectedWarnings: Array.Empty<Warning>(),
+            expectedConsoleOutputs: new[]
+            {
+                "Unused libraries:",   // Ensure link.exe unused lib flags are active
+                @"\user32.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
+                "Unused MSVC libraries detected in project",
+                "  * Default Windows SDK import libraries:",
+                "    - Libraries needed: ",
+                "    - Unneeded: ",
+            },
+            expectUnusedMsvcLibrariesLog: true);
+    }
+
+    [TestMethod]
+    public async Task UnusedCppLibrary()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.Inconclusive("This test only applies to Windows");
+            return;
+        }
+
+        await RunMSBuildAsync(
+            projectFile: "App/App.vcxproj",
+            expectedWarnings: Array.Empty<Warning>(),
+            expectedConsoleOutputs: new[]
+            {
+                "Unused libraries:",   // Ensure link.exe unused lib flags are active
+                "Unused MSVC libraries detected in project",
+                "  * Other libraries - ",
+                @"\Library.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
+            },
+            expectUnusedMsvcLibrariesLog: true);
+    }
+
+    [TestMethod]
+    public async Task UnusedCppDelayLoadLibrary()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.Inconclusive("This test only applies to Windows");
+            return;
+        }
+
+        await RunMSBuildAsync(
+            projectFile: "App/App.vcxproj",
+            expectedWarnings: Array.Empty<Warning>(),
+            expectedConsoleOutputs: new[]
+            {
+                "Unused libraries:",   // Ensure link.exe unused lib flags are active
+                "Unused MSVC libraries detected in project",
+                "  * Other libraries - ",
+                @"\DLL.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
+            },
+            expectUnusedMsvcLibrariesLog: true);
     }
 
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
@@ -364,7 +439,7 @@ public sealed class E2ETests
         }
     }
 
-    private void RunMSBuild(string projectFile, Warning[] expectedWarnings)
+    private async Task RunMSBuildAsync(string projectFile, Warning[] expectedWarnings, string[]? expectedConsoleOutputs = null, bool expectUnusedMsvcLibrariesLog = false)
     {
         var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext?.TestName ?? string.Empty));
 
@@ -375,11 +450,26 @@ public sealed class E2ETests
 
         TestContext?.WriteLine($"Log directory: {logDirBase}");
 
+        string unusedLibraryLogPath = Path.Combine(testDataSourcePath, UnusedLibsLogger.HelpKeyword + ".json.log");
+        if (File.Exists(unusedLibraryLogPath))
+        {
+            File.Delete(unusedLibraryLogPath);
+        }
+
+        string loggersAssemblyPath = Path.Combine(Environment.CurrentDirectory, "ReferenceTrimmer.Loggers.dll");
+
+        string msbuildArgs = $"{MSBuild.Verb} \"{projectFile}\" " +
+                             $"-m:1 -t:Rebuild -restore -nologo -nodeReuse:false -noAutoResponse " +
+                             $"-bl:\"{binlogFilePath}\" " +
+                             $"-flp1:logfile=\"{errorsFilePath}\";errorsonly " +
+                             $"-flp2:logfile=\"{warningsFilePath}\";warningsonly " +
+                             $"-distributedlogger:CentralLogger,\"{loggersAssemblyPath}\"*ForwardingLogger,\"{loggersAssemblyPath}\"";
+
         Process? process = Process.Start(
             new ProcessStartInfo
             {
                 FileName = MSBuild.ExePath,
-                Arguments = $"{MSBuild.Verb} \"{projectFile}\" -restore -nologo -nodeReuse:false -noAutoResponse -bl:\"{binlogFilePath}\" -flp1:logfile=\"{errorsFilePath}\";errorsonly -flp2:logfile=\"{warningsFilePath}\";warningsonly",
+                Arguments = msbuildArgs,
                 WorkingDirectory = testDataSourcePath,
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -388,18 +478,19 @@ public sealed class E2ETests
             });
         Assert.IsNotNull(process);
 
-        string stdOut = process.StandardOutput.ReadToEnd();
-        string stdErr = process.StandardError.ReadToEnd();
+        string stdOut = await process.StandardOutput.ReadToEndAsync();
+        string stdErr = await process.StandardError.ReadToEndAsync();
 
-        process.WaitForExit();
+        await process.WaitForExitAsync();
 
         Assert.AreEqual(0, process.ExitCode, $"Build of {projectFile} was not successful.{Environment.NewLine}StandardError: {stdErr}{Environment.NewLine}StandardOutput: {stdOut}");
+        Assert.AreEqual(File.Exists(unusedLibraryLogPath), expectUnusedMsvcLibrariesLog);
 
-        string errors = File.ReadAllText(errorsFilePath);
+        string errors = await File.ReadAllTextAsync(errorsFilePath);
         Assert.IsTrue(errors.Length == 0, $"Build of {projectFile} was not successful.{Environment.NewLine}Error log: {errors}");
 
         List<Warning> actualWarnings = new();
-        foreach (string line in File.ReadAllLines(warningsFilePath))
+        foreach (string line in await File.ReadAllLinesAsync(warningsFilePath))
         {
             Match match = WarningErrorRegex.Match(line);
             if (match.Success)
@@ -420,7 +511,11 @@ public sealed class E2ETests
         {
             for (var i = 0; i < actualWarnings.Count; i++)
             {
-                warningsMatched &= expectedWarnings[i] == actualWarnings[i];
+                warningsMatched &=
+                    expectedWarnings[i].Project == actualWarnings[i].Project &&
+                    (expectedWarnings[i].Message == actualWarnings[i].Message ||
+                     (expectedWarnings[i].AltMessages is not null &&
+                     expectedWarnings[i].AltMessages!.Any(m => m == actualWarnings[i].Message)));
             }
         }
 
@@ -432,5 +527,13 @@ Expected warnings:
 
 Actual warnings:
 {(actualWarnings.Count == 0 ? "<none>" : string.Join(Environment.NewLine, actualWarnings))}");
+
+        if (expectedConsoleOutputs is not null)
+        {
+            foreach (string expectedLogOutput in expectedConsoleOutputs)
+            {
+                Assert.IsTrue(stdOut.Contains(expectedLogOutput, StringComparison.OrdinalIgnoreCase), $"Expected log output '{expectedLogOutput}' was not found. Full console stdout: {stdOut}{Environment.NewLine}Console stderr: {stdErr}");
+            }
+        }
     }
 }

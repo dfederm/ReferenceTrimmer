@@ -1,8 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+
     <!-- Don't compile anything from the test data dir -->
     <DefaultItemExcludes>$(DefaultItemExcludes);TestData/**;TestResults/**</DefaultItemExcludes>
+    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.4.1" />
@@ -14,6 +17,7 @@
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Targets>Build;Pack</Targets>
     </ProjectReference>
+    <ProjectReference Include="..\Loggers\ReferenceTrimmer.Loggers.csproj" />  <!-- Pull the Loggers binary into the output to use in Directory.Build.rsp -->
   </ItemGroup>
   <ItemGroup>
     <Content Include="TestData\**">
@@ -28,13 +32,7 @@
     </ItemGroup>
   </Target>
   <Target Name="FixNuGetConfigPaths" AfterTargets="CopyFilesToOutputDirectory">
-    <XmlPoke
-        XmlInputPath="$(OutDir)\TestData\NuGet.Config"
-        Query="/configuration/config/add[@key='globalPackagesFolder']/@value"
-        Value="../Packages" />
-    <XmlPoke
-        XmlInputPath="$(OutDir)\TestData\NuGet.Config"
-        Query="/configuration/packageSources/add[@key='e2e-tests']/@value"
-        Value=".." />
+    <XmlPoke XmlInputPath="$(OutDir)\TestData\NuGet.Config" Query="/configuration/config/add[@key='globalPackagesFolder']/@value" Value="../Packages" />
+    <XmlPoke XmlInputPath="$(OutDir)\TestData\NuGet.Config" Query="/configuration/packageSources/add[@key='e2e-tests']/@value" Value=".." />
   </Target>
 </Project>
