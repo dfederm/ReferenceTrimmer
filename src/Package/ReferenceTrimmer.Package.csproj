@@ -9,6 +9,7 @@
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);GetMyPackageFiles</TargetsForTfmSpecificContentInPackage>
     <IncludeSymbols>false</IncludeSymbols>
     <PackageOutputPath>$(RepoRoot)\artifacts</PackageOutputPath>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Analyzer\ReferenceTrimmer.Analyzer.csproj"
@@ -20,19 +21,20 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="build\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>true</Pack>
       <PackagePath>build</PackagePath>
     </Content>
     <Content Include="buildMultiTargeting\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>true</Pack>
       <PackagePath>buildMultiTargeting</PackagePath>
     </Content>
     <Content Update="tools\*.ps1">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>true</Pack>
       <PackagePath>tools</PackagePath>
+    </Content>
+    <Content Include="..\..\README.md">
+      <Pack>true</Pack>
+      <PackagePath>\</PackagePath>
     </Content>
   </ItemGroup>
   <Target Name="GetMyPackageFiles" DependsOnTargets="ResolveProjectReferences">
