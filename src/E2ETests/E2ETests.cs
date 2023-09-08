@@ -8,10 +8,12 @@ namespace ReferenceTrimmer.Tests;
 [TestClass]
 public sealed class E2ETests
 {
+    private readonly record struct Warning(string Message, string Project);
+
     private static readonly (string ExePath, string Verb) MSBuild = GetMsBuildExeAndVerb();
 
     private static readonly Regex WarningErrorRegex = new(
-        @".+: (warning|error) (?<message>.+) \[.+\]",
+        @".+: (warning|error) (?<message>.+) \[(?<project>.+)\]",
         RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
     public TestContext? TestContext { get; set; }
@@ -31,7 +33,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -41,7 +43,7 @@ public sealed class E2ETests
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                "RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed",
+                new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
             });
     }
 
@@ -51,11 +53,11 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
 
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -64,11 +66,11 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
 
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -77,13 +79,13 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
 
         RunMSBuild(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                "RT0001: Reference Dependency can be removed",
+                new Warning("RT0001: Reference Dependency can be removed", "Library/Library.csproj"),
             });
     }
 
@@ -93,15 +95,17 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
 
         RunMSBuild(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                OperatingSystem.IsWindows()
-                    ? @"RT0001: Reference ..\Dependency\bin\Debug\net472\\Dependency.dll can be removed"
-                    : @"RT0001: Reference ../Dependency/bin/Debug/net472/Dependency.dll can be removed",
+                new Warning(
+                    OperatingSystem.IsWindows()
+                        ? @"RT0001: Reference ..\Dependency\bin\Debug\net472\\Dependency.dll can be removed"
+                        : @"RT0001: Reference ../Dependency/bin/Debug/net472/Dependency.dll can be removed",
+                    "Library/Library.csproj"),
             });
     }
 
@@ -110,7 +114,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -118,7 +122,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "WebHost/WebHost.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -128,7 +132,7 @@ public sealed class E2ETests
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                "RT0003: PackageReference Newtonsoft.Json can be removed",
+                new Warning("RT0003: PackageReference Newtonsoft.Json can be removed", "Library/Library.csproj")
             });
     }
 
@@ -139,7 +143,7 @@ public sealed class E2ETests
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
-                "RT0000: Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection",
+                new Warning("RT0000: Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection", "Library/Library.csproj")
             });
     }
 
@@ -148,7 +152,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -156,7 +160,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -167,7 +171,7 @@ public sealed class E2ETests
             expectedWarnings: new[]
             {
                 // TODO: These "metapackages" should not be reported.
-                "RT0003: PackageReference NETStandard.Library can be removed",
+                new Warning("RT0003: PackageReference NETStandard.Library can be removed", "Library/Library.csproj"),
             });
     }
 
@@ -176,7 +180,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Project.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -184,7 +188,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -192,7 +196,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -200,7 +204,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -208,7 +212,7 @@ public sealed class E2ETests
     {
         RunMSBuild(
             projectFile: "Tests/Tests.csproj",
-            expectedWarnings: Array.Empty<string>());
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
@@ -279,7 +283,7 @@ public sealed class E2ETests
         }
     }
 
-    private void RunMSBuild(string projectFile, string[] expectedWarnings)
+    private void RunMSBuild(string projectFile, Warning[] expectedWarnings)
     {
         var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext?.TestName ?? string.Empty));
 
@@ -313,18 +317,27 @@ public sealed class E2ETests
         string errors = File.ReadAllText(errorsFilePath);
         Assert.IsTrue(errors.Length == 0, $"Build of {projectFile} was not successful.{Environment.NewLine}Error log: {errors}");
 
-        string[] actualWarnings = File.ReadAllLines(warningsFilePath)
-            .Select(line =>
+        List<Warning> actualWarnings = new();
+        foreach (string line in File.ReadAllLines(warningsFilePath))
+        {
+            Match match = WarningErrorRegex.Match(line);
+            if (match.Success)
             {
-                Match match = WarningErrorRegex.Match(line);
-                return match.Success ? match.Groups["message"].Value : line;
-            })
-            .ToArray();
+                string message = match.Groups["message"].Value;
+                string projectFullPath = match.Groups["project"].Value;
+                string projectRelativePath = projectFullPath[(testDataSourcePath.Length + 1)..];
 
-        bool warningsMatched = expectedWarnings.Length == actualWarnings.Length;
+                // Normalize slashes for the project paths
+                projectRelativePath = projectRelativePath.Replace('\\', '/');
+
+                actualWarnings.Add(new Warning(message, projectRelativePath));
+            }
+        }
+
+        bool warningsMatched = expectedWarnings.Length == actualWarnings.Count;
         if (warningsMatched)
         {
-            for (var i = 0; i < actualWarnings.Length; i++)
+            for (var i = 0; i < actualWarnings.Count; i++)
             {
                 warningsMatched &= expectedWarnings[i] == actualWarnings[i];
             }
@@ -337,6 +350,6 @@ Expected warnings:
 {(expectedWarnings.Length == 0 ? "<none>" : string.Join(Environment.NewLine, expectedWarnings))}
 
 Actual warnings:
-{(actualWarnings.Length == 0 ? "<none>" : string.Join(Environment.NewLine, actualWarnings))}");
+{(actualWarnings.Count == 0 ? "<none>" : string.Join(Environment.NewLine, actualWarnings))}");
     }
 }
