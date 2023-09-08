@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Package\ReferenceTrimmer.Package.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Targets>Build;Pack</Targets>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

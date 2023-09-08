@@ -9,10 +9,9 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ windows-latest, ubuntu-latest ]
+        os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0 # Git Versioning requires a non-shallow clone
@@ -33,7 +32,7 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           directory: ./TestResults
-          files: '*.cobertura.xml'
+          files: "*.cobertura.xml"
 
       - name: Upload test results
         uses: actions/upload-artifact@v3
@@ -54,3 +53,4 @@ jobs:
         with:
           name: artifacts
           path: ./artifacts
+        if: ${{ always() }} # Always run this step even on failure

@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
   # Allow manually triggering
   workflow_dispatch:
 
@@ -14,7 +14,6 @@ jobs:
     # TODO: Add ubuntu-latest
     runs-on: windows-latest
     steps:
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0 # Git Versioning requires a non-shallow clone
@@ -35,7 +34,7 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           directory: ./TestResults
-          files: '*.cobertura.xml'
+          files: "*.cobertura.xml"
 
       - name: Upload test results
         uses: actions/upload-artifact@v3
@@ -56,6 +55,7 @@ jobs:
         with:
           name: artifacts
           path: ./artifacts
+        if: ${{ always() }} # Always run this step even on failure
 
       - name: Push NuGet package
         run: dotnet nuget push artifacts\*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
