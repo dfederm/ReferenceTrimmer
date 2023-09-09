@@ -124,6 +124,16 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             {
                 foreach (ITaskItem projectReference in ProjectReferences)
                 {
+                    // Weirdly, NuGet restore is actually how transitive project references are determined and they're
+                    // added to to project.assets.json and collected via the IncludeTransitiveProjectReferences target.
+                    // This also adds the NuGetPackageId metadata, so use that as a signal that it's transitive.
+                    bool isTransitiveDependency = !string.IsNullOrEmpty(projectReference.GetMetadata("NuGetPackageId"));
+                    if (isTransitiveDependency)
+                    {
+                        // Ignore transitive project references since the project doesn't have direct control over them.
+                        continue;
+                    }
+
                     string projectReferenceAssemblyName = new AssemblyName(projectReference.GetMetadata("FusionName")).Name;
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
