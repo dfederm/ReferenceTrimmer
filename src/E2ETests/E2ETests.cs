@@ -48,6 +48,31 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public void UnusedTransitiveProjectReference()
+    {
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                // Only the Dependency gets the warning. Library doesn't get penalized for a transitive dependency.
+                new Warning("RT0002: ProjectReference ../TransitiveDependency/TransitiveDependency.csproj can be removed", "Dependency/Dependency.csproj"),
+            });
+    }
+
+    [TestMethod]
+    public void UnusedDirectAndTransitiveProjectReference()
+    {
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                // Both the Library and Dependency get the warning since both directly referenced it.
+                new Warning("RT0002: ProjectReference ../TransitiveDependency/TransitiveDependency.csproj can be removed", "Dependency/Dependency.csproj"),
+                new Warning("RT0002: ProjectReference ../TransitiveDependency/TransitiveDependency.csproj can be removed", "Library/Library.csproj"),
+            });
+    }
+
+    [TestMethod]
     public void UsedReferenceHintPath()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
