@@ -14,7 +14,7 @@ public sealed class E2ETests
         @".+: (warning|error) (?<message>.+) \[(?<project>.+)\]",
         RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
-    public static IEnumerable<object[]> MSBuildPlatform => new[] { new object[] { "" }, new object[] { "amd64" } };
+    public static IEnumerable<object[]> MSBuildPlatform => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? new[] { new object[] { "" }, new object[] { "amd64" } } : new[] { new object[] { "" } };
 
     public TestContext? TestContext { get; set; }
 
