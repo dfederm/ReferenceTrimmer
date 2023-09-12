@@ -10,11 +10,11 @@ public sealed class E2ETests
 {
     private readonly record struct Warning(string Message, string Project);
 
-    private static readonly (string ExePath, string Verb) MSBuild = GetMsBuildExeAndVerb();
-
     private static readonly Regex WarningErrorRegex = new(
         @".+: (warning|error) (?<message>.+) \[(?<project>.+)\]",
         RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+
+    public static IEnumerable<object[]> MSBuildPlatform => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? new[] { new object[] { "" }, new object[] { "amd64" } } : new[] { new object[] { "" } };
 
     public TestContext? TestContext { get; set; }
 
@@ -29,17 +29,21 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UsedProjectReference()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UsedProjectReference(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedProjectReference()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UnusedProjectReference(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -48,9 +52,11 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedTransitiveProjectReference()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UnusedTransitiveProjectReference(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -60,9 +66,11 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedDirectAndTransitiveProjectReference()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UnusedDirectAndTransitiveProjectReference(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -73,40 +81,49 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UsedReferenceHintPath()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UsedReferenceHintPath(string msbuildPlatform)
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UsedReferenceItemSpec()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UsedReferenceItemSpec(string msbuildPlatform)
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedReferenceHintPath()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UnusedReferenceHintPath(string msbuildPlatform)
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -115,14 +132,17 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedReferenceItemSpec()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UnusedReferenceItemSpec(string msbuildPlatform)
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Dependency/Dependency.csproj",
             expectedWarnings: Array.Empty<Warning>());
 
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -135,25 +155,31 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UsedPackageReference()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UsedPackageReference(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UsedIndirectPackageReference()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UsedIndirectPackageReference(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "WebHost/WebHost.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void UnusedPackageReference()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UnusedPackageReference(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -162,9 +188,11 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void UnusedPackageReferenceDocDisabled()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void UnusedPackageReferenceDocDisabled(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -173,25 +201,31 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void BuildPackageReference()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void BuildPackageReference(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void MissingReferenceSourceTarget()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void MissingReferenceSourceTarget(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void PlatformPackageConflictResolution()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void PlatformPackageConflictResolution(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -201,46 +235,56 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public void NoTargets()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void NoTargets(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Project.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void TargetFrameworkWithOs()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void TargetFrameworkWithOs(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void AbsoluteIntermediateOutputPath()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void AbsoluteIntermediateOutputPath(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void BuildExtensions()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void BuildExtensions(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
-    public void ReferenceInPackage()
+    [DynamicData(nameof(MSBuildPlatform))]
+    public void ReferenceInPackage(string msbuildPlatform)
     {
         RunMSBuild(
+            msbuildPlatform: msbuildPlatform,
             projectFile: "Tests/Tests.csproj",
             expectedWarnings: Array.Empty<Warning>());
     }
 
-    private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
+    private static (string ExePath, string Verb) GetMsBuildExeAndVerb(string msbuildPlatform)
     {
         // On Windows, try to find Visual Studio
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -259,7 +303,7 @@ public sealed class E2ETests
 
             if (!string.IsNullOrEmpty(vsInstallDir))
             {
-                string msbuildExePath = Path.Combine(vsInstallDir, @"MSBuild\Current\Bin\MSBuild.exe");
+                string msbuildExePath = Path.Combine(vsInstallDir, $"MSBuild\\Current\\Bin\\{msbuildPlatform}\\MSBuild.exe");
                 if (!File.Exists(msbuildExePath))
                 {
                     throw new InvalidOperationException($"Could not find MSBuild.exe path for unit tests: {msbuildExePath}");
@@ -308,7 +352,7 @@ public sealed class E2ETests
         }
     }
 
-    private void RunMSBuild(string projectFile, Warning[] expectedWarnings)
+    private void RunMSBuild(string msbuildPlatform, string projectFile, Warning[] expectedWarnings)
     {
         var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext?.TestName ?? string.Empty));
 
@@ -318,6 +362,7 @@ public sealed class E2ETests
         string errorsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".errors.log");
 
         TestContext?.WriteLine($"Log directory: {logDirBase}");
+        (string ExePath, string Verb) MSBuild = GetMsBuildExeAndVerb(msbuildPlatform);
 
         Process? process = Process.Start(
             new ProcessStartInfo
