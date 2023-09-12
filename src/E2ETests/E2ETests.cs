@@ -15,7 +15,7 @@ public sealed class E2ETests
         RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
     public static IEnumerable<object[]> MSBuildPlatform => new[] { new object[] { "" }, new object[] { "amd64" } };
-    
+
     public TestContext? TestContext { get; set; }
 
     [ClassInitialize]
