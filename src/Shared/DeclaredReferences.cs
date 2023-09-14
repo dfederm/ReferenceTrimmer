@@ -32,6 +32,8 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
             writer.Write(KindEnumToString[reference.Kind]);
             writer.Write(FieldDelimiter);
             writer.Write(reference.Spec);
+            writer.Write(FieldDelimiter);
+            writer.Write(reference.NoWarn);
             writer.WriteLine();
         }
     }
@@ -46,8 +48,8 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
         string? line;
         while ((line = reader.ReadLine()) != null)
         {
-            string[] parts = line.Split(FieldDelimiters, 3);
-            if (parts.Length != 3)
+            string[] parts = line.Split(FieldDelimiters, 4);
+            if (parts.Length != 4)
             {
                 throw new InvalidDataException($"File '{filePath}' is invalid. Line: {references.Count + 1}");
             }
@@ -55,7 +57,7 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
             string assemblyName = parts[0];
             DeclaredReferenceKind kind = KindStringToEnum[parts[1]];
             string spec = parts[2];
-            DeclaredReference reference = new(assemblyName, kind, spec);
+            DeclaredReference reference = new(assemblyName, kind, spec, parts[3]);
             references.Add(reference);
         }
 
@@ -63,6 +65,6 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
     }
 }
 
-internal record DeclaredReference(string AssemblyName, DeclaredReferenceKind Kind, string Spec);
+internal record DeclaredReference(string AssemblyName, DeclaredReferenceKind Kind, string Spec, string NoWarn);
 
 internal enum DeclaredReferenceKind { Reference, ProjectReference, PackageReference }

@@ -48,6 +48,14 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public void UnusedProjectReferenceNoWarn()
+    {
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public void UnusedTransitiveProjectReference()
     {
         RunMSBuild(
@@ -115,6 +123,19 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public void UnusedReferenceHintPathNoWarn()
+    {
+        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        RunMSBuild(
+            projectFile: "Dependency/Dependency.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public void UnusedReferenceItemSpec()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
@@ -132,6 +153,19 @@ public sealed class E2ETests
                         : @"RT0001: Reference ../Dependency/bin/Debug/net472/Dependency.dll can be removed",
                     "Library/Library.csproj"),
             });
+    }
+
+    [TestMethod]
+    public void UnusedReferenceItemSpecNoWarn()
+    {
+        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        RunMSBuild(
+            projectFile: "Dependency/Dependency.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -159,6 +193,14 @@ public sealed class E2ETests
             {
                 new Warning("RT0003: PackageReference Newtonsoft.Json can be removed", "Library/Library.csproj")
             });
+    }
+
+    [TestMethod]
+    public void UnusedPackageReferenceNoWarn()
+    {
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]

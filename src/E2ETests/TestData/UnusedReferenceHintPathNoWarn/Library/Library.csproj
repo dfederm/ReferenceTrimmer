@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Dependency">
+      <HintPath>..\Dependency\$(OutputPath)\Dependency.dll</HintPath>
+      <NoWarn>RT0001</NoWarn>
+    </Reference>
+  </ItemGroup>
+
+</Project>

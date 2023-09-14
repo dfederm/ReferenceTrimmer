@@ -116,7 +116,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         }
                     }
 
-                    declaredReferences.Add(new DeclaredReference(referenceAssemblyName, DeclaredReferenceKind.Reference, referenceSpec));
+                    declaredReferences.Add(new DeclaredReference(referenceAssemblyName, DeclaredReferenceKind.Reference, referenceSpec, reference.GetMetadata("NoWarn")));
                 }
             }
 
@@ -137,7 +137,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     string projectReferenceAssemblyName = new AssemblyName(projectReference.GetMetadata("FusionName")).Name;
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
-                    declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyName, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
+                    declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyName, DeclaredReferenceKind.ProjectReference, referenceProjectFile, projectReference.GetMetadata("NoWarn")));
                 }
             }
 
@@ -160,7 +160,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     foreach (string assemblyName in packageInfo.CompileTimeAssemblies)
                     {
-                        declaredReferences.Add(new DeclaredReference(assemblyName, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec));
+                        declaredReferences.Add(new DeclaredReference(assemblyName, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec, packageReference.GetMetadata("NoWarn")));
                     }
                 }
             }
