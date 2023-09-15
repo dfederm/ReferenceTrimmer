@@ -6,7 +6,7 @@
     <CoreCompileDependsOn Condition="'$(EnableReferenceTrimmer)' != 'false'">$(CoreCompileDependsOn);CollectDeclaredReferences</CoreCompileDependsOn>
   </PropertyGroup>
 
-  <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveProjectReferences">
+  <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences">
     <PropertyGroup>
       <_ReferenceTrimmerDeclaredReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_DeclaredReferences.tsv</_ReferenceTrimmerDeclaredReferencesFile>
     </PropertyGroup>
@@ -28,7 +28,8 @@
       ProjectReferences="@(_ReferenceTrimmerProjectReferences)"
       PackageReferences="@(PackageReference)"
       ProjectAssetsFile="$(ProjectAssetsFile)"
-      TargetFramework="$(TargetFramework)"
+      TargetFrameworkMoniker="$(ReferringTargetFrameworkForProjectReferences)"
+      TargetPlatformMoniker="$(TargetPlatformMoniker)"
       RuntimeIdentifier="$(RuntimeIdentifier)"
       NuGetRestoreTargets="$(NuGetRestoreTargets)"
       TargetFrameworkDirectories="$(TargetFrameworkDirectory)"

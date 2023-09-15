@@ -240,6 +240,20 @@ public sealed class E2ETests
             expectedWarnings: Array.Empty<Warning>());
     }
 
+    [TestMethod]
+    public void LegacyStyleProject()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.Inconclusive("This test only applies to Windows");
+            return;
+        }
+
+        RunMSBuild(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
     {
         // On Windows, try to find Visual Studio
