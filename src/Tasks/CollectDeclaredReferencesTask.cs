@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
+using NuGet.Frameworks;
 using NuGet.ProjectModel;
 using ReferenceTrimmer.Shared;
 using MSBuildTask = Microsoft.Build.Utilities.Task;
@@ -36,7 +37,9 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     public string? ProjectAssetsFile { get; set; }
 
-    public string? TargetFramework { get; set; }
+    public string? TargetFrameworkMoniker { get; set; }
+
+    public string? TargetPlatformMoniker { get; set; }
 
     public string? RuntimeIdentifier { get; set; }
 
@@ -185,7 +188,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         var lockFile = LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
         var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
 
-        var nugetTarget = lockFile.GetTarget(TargetFramework, RuntimeIdentifier);
+        var nugetFramework = NuGetFramework.ParseComponents(TargetFrameworkMoniker, TargetPlatformMoniker);
+        var nugetTarget = lockFile.GetTarget(nugetFramework, RuntimeIdentifier);
         var nugetLibraries = nugetTarget.Libraries
             .Where(nugetLibrary => nugetLibrary.Type.Equals("Package", StringComparison.OrdinalIgnoreCase))
             .ToList();
