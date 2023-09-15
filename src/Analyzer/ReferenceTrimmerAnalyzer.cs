@@ -91,14 +91,13 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
-        Dictionary<string, string> packageNoWarn = new(StringComparer.OrdinalIgnoreCase);
         foreach (DeclaredReference declaredReference in declaredReferences.References)
         {
             switch (declaredReference.Kind)
             {
                 case DeclaredReferenceKind.Reference:
                 {
-                    if (!usedReferences.Contains(declaredReference.AssemblyName) && !declaredReference.NoWarn.Contains(RT0001Descriptor.Id))
+                    if (!usedReferences.Contains(declaredReference.AssemblyName))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0001Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -107,7 +106,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 }
                 case DeclaredReferenceKind.ProjectReference:
                 {
-                    if (!usedReferences.Contains(declaredReference.AssemblyName) && !declaredReference.NoWarn.Contains(RT0002Descriptor.Id))
+                    if (!usedReferences.Contains(declaredReference.AssemblyName))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0002Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -123,7 +122,6 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     }
 
                     packageAssemblies.Add(declaredReference.AssemblyName);
-                    packageNoWarn[declaredReference.Spec] = declaredReference.NoWarn;
                     break;
                 }
             }
@@ -134,7 +132,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         {
             string packageName = kvp.Key;
             List<string> packageAssemblies = kvp.Value;
-            if (!packageAssemblies.Any(usedReferences.Contains) && !packageNoWarn[packageName].Contains(RT0003Descriptor.Id))
+            if (!packageAssemblies.Any(usedReferences.Contains))
             {
                 context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, packageName));
             }
