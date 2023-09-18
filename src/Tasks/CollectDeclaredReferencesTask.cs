@@ -23,6 +23,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         "NuGet.Versioning",
     };
 
+    private const string NoWarn = "NoWarn";
+
     [Required]
     public string? OutputFile { get; set; }
 
@@ -81,6 +83,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         continue;
                     }
 
+                    // Ignore suppressions
+                    if (reference.GetMetadata(NoWarn).Contains("RT0001"))
+                    {
+                        continue;
+                    }
+
                     var referenceSpec = reference.ItemSpec;
                     var referenceHintPath = reference.GetMetadata("HintPath");
 
@@ -127,6 +135,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             {
                 foreach (ITaskItem projectReference in ProjectReferences)
                 {
+                    // Ignore suppressions
+                    if (projectReference.GetMetadata(NoWarn).Contains("RT0002"))
+                    {
+                        continue;
+                    }
+
                     // Weirdly, NuGet restore is actually how transitive project references are determined and they're
                     // added to to project.assets.json and collected via the IncludeTransitiveProjectReferences target.
                     // This also adds the NuGetPackageId metadata, so use that as a signal that it's transitive.
@@ -149,6 +163,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 Dictionary<string, PackageInfo> packageInfos = GetPackageInfos();
                 foreach (ITaskItem packageReference in PackageReferences)
                 {
+                    // Ignore suppressions
+                    if (packageReference.GetMetadata(NoWarn).Contains("RT0003"))
+                    {
+                        continue;
+                    }
+
                     if (!packageInfos.TryGetValue(packageReference.ItemSpec, out PackageInfo packageInfo))
                     {
                         // These are likely Analyzers, tools, etc.

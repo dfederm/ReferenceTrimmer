@@ -4,6 +4,14 @@
 
 Easily identify which dependencies can be removed from an MSBuild project.
 
+## Rules
+| Id     | Description |
+|--------|-------------|
+| RT0000 | Enable documentation generation for accuracy of used references detection |
+| RT0001 | Unnecessary reference  |
+| RT0002 | Unnecessary project reference |
+| RT0003 | Unnecessary package reference |
+
 ## How to use
 Add a package reference to the [ReferenceTrimmer](https://www.nuget.org/packages/ReferenceTrimmer) package in your projects. The package contains build logic to emit warnings when unused dependencies are detected.
 
@@ -43,19 +51,18 @@ You'll need to enable C# documentation XML generation to ensure good analysis re
 
 Note: To get better results, enable the [`IDE0005`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005) unnecessary `using` rule. This avoids the C# compiler seeing a false positive assembly usage from unneeded `using` directives causing it to miss a removable dependency. See also the note for why IDE0005 code analysis rule requires `<GenerateDocumentationFile>` property to be enabled. Documentation generation is also required for accuracy of used references detection (based on https://github.com/dotnet/roslyn/issues/66188).
 
+## Disabling a rule on a reference
+To turn off a rule on a specific project or package reference, add the relevant RTxxxx code to a NoWarn metadata attribute. For example:
+
+```xml
+<ProjectReference Include="../Other/Project.csproj" NoWarn="RT0002" />
+```
+
 ## Configuration
 `$(EnableReferenceTrimmer)` - Controls whether the build logic should run for a given project. Defaults to `true`.
 
-## Rules
-| Id     | Description |
-|--------|-------------|
-| RT0000 | Enable documentation generation for accuracy of used references detection |
-| RT0001 | Unnecessary reference  |
-| RT0002 | Unnecessary project reference |
-| RT0003 | Unnecessary package reference |
-
 ## How does it work?
-There are two main pieces to the package. First there is an MSBuild task which collects all refernces passed to the compiler. There is also a Roslyn Analyzer which uses the [`GetUsedAssemblyReferences`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.compilation.getusedassemblyreferences) analyzer API which is available starting with Roslyn compiler that shipped with Visual Studio 2019 version 16.10, .NET 5. (see https://github.com/dotnet/roslyn/blob/main/docs/wiki/NuGet-packages.md#versioning). This is the compiler telling us exactly what references were needed as part of compilation. The analyzer then compares the set of references the Task gathered with the references the compiler says were used.
+There are two main pieces to the package. First there is an MSBuild task which collects all references passed to the compiler. There is also a Roslyn Analyzer which uses the [`GetUsedAssemblyReferences`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.compilation.getusedassemblyreferences) analyzer API which is available starting with Roslyn compiler that shipped with Visual Studio 2019 version 16.10, .NET 5. (see https://github.com/dotnet/roslyn/blob/main/docs/wiki/NuGet-packages.md#versioning). This is the compiler telling us exactly what references were needed as part of compilation. The analyzer then compares the set of references the Task gathered with the references the compiler says were used.
 
 ## Future development
 The outcome of https://github.com/dotnet/sdk/issues/10414 may be of use for `ReferenceTrimmer` future updates.
