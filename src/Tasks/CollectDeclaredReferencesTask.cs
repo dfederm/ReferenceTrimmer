@@ -209,23 +209,32 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
 
         var nugetFramework = NuGetFramework.ParseComponents(TargetFrameworkMoniker, TargetPlatformMoniker);
-        var nugetTarget = lockFile.GetTarget(nugetFramework, RuntimeIdentifier);
-        var nugetLibraries = nugetTarget.Libraries
-            .Where(nugetLibrary => nugetLibrary.Type.Equals("Package", StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        LockFileTarget? nugetTarget = lockFile.GetTarget(nugetFramework, RuntimeIdentifier);
+
+        List<LockFileTargetLibrary> nugetLibraries;
+        if (nugetTarget?.Libraries is not null)
+        {
+            nugetLibraries = nugetTarget.Libraries
+                .Where(nugetLibrary => string.Equals(nugetLibrary.Type, "Package", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        else
+        {
+            nugetLibraries = new List<LockFileTargetLibrary>();
+        }
 
         // Compute the hierarchy of packages.
         // Keys are packages and values are packages which depend on that package.
-        var nugetDependants = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var nugetDependents = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (LockFileTargetLibrary nugetLibrary in nugetLibraries)
         {
             var packageId = nugetLibrary.Name;
             foreach (var dependency in nugetLibrary.Dependencies)
             {
-                if (!nugetDependants.TryGetValue(dependency.Id, out var parents))
+                if (!nugetDependents.TryGetValue(dependency.Id, out var parents))
                 {
                     parents = new List<string>();
-                    nugetDependants.Add(dependency.Id, parents);
+                    nugetDependents.Add(dependency.Id, parents);
                 }
 
                 parents.Add(packageId);
@@ -258,7 +267,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             if (nugetLibraryAssemblies.Count > 0 || buildFiles.Count > 0)
             {
                 // Walk up to add assets to all packages which directly or indirectly depend on this one.
-                var seenDependants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var seenDependents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var queue = new Queue<string>();
                 queue.Enqueue(nugetLibrary.Name);
                 while (queue.Count > 0)
@@ -274,14 +283,14 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     packageInfoBuilder.AddCompileTimeAssemblies(nugetLibraryAssemblies);
                     packageInfoBuilder.AddBuildFiles(buildFiles);
 
-                    // Recurse though dependants
-                    if (nugetDependants.TryGetValue(packageId, out var dependants))
+                    // Recurse though dependents
+                    if (nugetDependents.TryGetValue(packageId, out var dependents))
                     {
-                        foreach (var dependant in dependants)
+                        foreach (var dependent in dependents)
                         {
-                            if (seenDependants.Add(dependant))
+                            if (seenDependents.Add(dependent))
                             {
-                                queue.Enqueue(dependant);
+                                queue.Enqueue(dependent);
                             }
                         }
                     }
