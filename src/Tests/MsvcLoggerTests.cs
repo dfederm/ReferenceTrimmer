@@ -184,13 +184,15 @@ public sealed class MsvcLoggerTests
     [DoNotParallelize]
     public void CentralLogger_WritesNoJsonIfNoUnusedLibEvents()
     {
+        string jsonPath = Path.Combine(Environment.CurrentDirectory, CentralLogger.JsonLogFileName);
+        DeleteIfExists(jsonPath);
+
         var eventSource = new MockEventSource();
         var centralLogger = new CentralLogger();
         centralLogger.Initialize(eventSource);
         eventSource.SendCustomEvent(new NonUnusedLibCustomEventArgs());
         eventSource.SendCustomEvent(new UnusedLibsCustomBuildEventArgs());
         centralLogger.Shutdown();
-        string jsonPath = Path.Combine(Environment.CurrentDirectory, CentralLogger.JsonLogFileName);
         Assert.IsFalse(File.Exists(jsonPath));
     }
 
@@ -198,6 +200,9 @@ public sealed class MsvcLoggerTests
     [DoNotParallelize]
     public async Task CentralLogger_JsonOnUnusedLibEvents()
     {
+        string jsonPath = Path.Combine(Environment.CurrentDirectory, CentralLogger.JsonLogFileName);
+        DeleteIfExists(jsonPath);
+
         var eventSource = new MockEventSource();
         var centralLogger = new CentralLogger();
         centralLogger.Initialize(eventSource);
@@ -206,9 +211,16 @@ public sealed class MsvcLoggerTests
         eventSource.SendCustomEvent(new UnusedLibsCustomBuildEventArgs(message: "Unused libraries 2!",
             projectPath: "a2.proj", unusedLibraryPathsJson: "{ \"aProp2\": \"aValue2\" }"));
         centralLogger.Shutdown();
-        string jsonPath = Path.Combine(Environment.CurrentDirectory, CentralLogger.JsonLogFileName);
         Assert.IsTrue(File.Exists(jsonPath));
         Assert.AreEqual($"[{Environment.NewLine}{{ \"aProp\": \"aValue\" }},{Environment.NewLine}{{ \"aProp2\": \"aValue2\" }}{Environment.NewLine}]{Environment.NewLine}",
             await File.ReadAllTextAsync(jsonPath));
+    }
+
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
     }
 }
