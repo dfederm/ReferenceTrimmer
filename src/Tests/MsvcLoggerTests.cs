@@ -188,6 +188,7 @@ public sealed class MsvcLoggerTests
         var centralLogger = new CentralLogger();
         centralLogger.Initialize(eventSource);
         eventSource.SendCustomEvent(new NonUnusedLibCustomEventArgs());
+        eventSource.SendCustomEvent(new UnusedLibsCustomBuildEventArgs());
         centralLogger.Shutdown();
         string jsonPath = Path.Combine(Environment.CurrentDirectory, CentralLogger.JsonLogFileName);
         Assert.IsFalse(File.Exists(jsonPath));
@@ -202,10 +203,12 @@ public sealed class MsvcLoggerTests
         centralLogger.Initialize(eventSource);
         eventSource.SendCustomEvent(new UnusedLibsCustomBuildEventArgs(message: "Unused libraries!",
             projectPath: "a.proj", unusedLibraryPathsJson: "{ \"aProp\": \"aValue\" }"));
+        eventSource.SendCustomEvent(new UnusedLibsCustomBuildEventArgs(message: "Unused libraries 2!",
+            projectPath: "a2.proj", unusedLibraryPathsJson: "{ \"aProp2\": \"aValue2\" }"));
         centralLogger.Shutdown();
         string jsonPath = Path.Combine(Environment.CurrentDirectory, CentralLogger.JsonLogFileName);
         Assert.IsTrue(File.Exists(jsonPath));
-        Assert.AreEqual($"[{Environment.NewLine}{{ \"aProp\": \"aValue\" }}{Environment.NewLine}]{Environment.NewLine}",
+        Assert.AreEqual($"[{Environment.NewLine}{{ \"aProp\": \"aValue\" }},{Environment.NewLine}{{ \"aProp2\": \"aValue2\" }}{Environment.NewLine}]{Environment.NewLine}",
             await File.ReadAllTextAsync(jsonPath));
     }
 }

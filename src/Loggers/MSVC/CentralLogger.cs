@@ -60,7 +60,7 @@ public sealed class CentralLogger : Logger
 
     private void CustomEventHandler(object sender, CustomBuildEventArgs e)
     {
-        if (e is not UnusedLibsCustomBuildEventArgs unusedLibsEvent)
+        if (e is not UnusedLibsCustomBuildEventArgs unusedLibsEvent || unusedLibsEvent.UnusedLibraryPathsJson.Length == 0)
         {
             return;
         }
