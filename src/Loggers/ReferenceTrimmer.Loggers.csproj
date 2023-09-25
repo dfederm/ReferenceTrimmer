@@ -9,7 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="ReferenceTrimmer.E2ETests" />
+    <InternalsVisibleTo Include="ReferenceTrimmer.Tests" />
   </ItemGroup>
 
 </Project>

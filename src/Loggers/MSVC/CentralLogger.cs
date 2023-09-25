@@ -13,10 +13,12 @@ public sealed class CentralLogger : Logger
     private bool _firstEvent = true;
     private string? _jsonLogFilePath;
 
+    internal const string JsonLogFileName = UnusedLibsLogger.HelpKeyword + ".json.log";
+
     /// <inheritdoc />
     public override void Initialize(IEventSource eventSource)
     {
-        _jsonLogFilePath = Path.Combine(Directory.GetCurrentDirectory(), UnusedLibsLogger.HelpKeyword + ".json.log");
+        _jsonLogFilePath = Path.Combine(Directory.GetCurrentDirectory(), JsonLogFileName);
         if (File.Exists(_jsonLogFilePath))
         {
             File.Delete(_jsonLogFilePath);

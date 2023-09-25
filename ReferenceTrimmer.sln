@@ -21,7 +21,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Tasks", "s
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Analyzer", "src\Analyzer\ReferenceTrimmer.Analyzer.csproj", "{6E7F5033-F180-4A47-9552-96C3DC3FDA06}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.E2ETests", "src\E2ETests\ReferenceTrimmer.E2ETests.csproj", "{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Tests", "src\Tests\ReferenceTrimmer.Tests.csproj", "{3099F4D8-0CFA-4819-A6A7-2BDFED107FFA}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReferenceTrimmer.Package", "src\Package\ReferenceTrimmer.Package.csproj", "{4C15C9AF-25D5-4725-BFB9-5C04533420AB}"
 EndProject

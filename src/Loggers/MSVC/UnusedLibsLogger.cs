@@ -8,7 +8,7 @@ namespace ReferenceTrimmer.Loggers.MSVC;
 /// Logger that captures the list of unused libraries from the Link task.
 /// Runs within the context of each MSBuild worker node and forwards events to the central logger.
 /// </summary>
-internal sealed class UnusedLibsLogger
+internal sealed class UnusedLibsLogger : IDisposable
 {
     private const string LinkTaskName = "Link";
 
@@ -52,6 +52,7 @@ internal sealed class UnusedLibsLogger
         public SortedSet<string> UnusedProjectLibPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
+    private readonly IEventSource _eventSource;
     private readonly IEventRedirector _buildEventRedirector;
     private readonly ConcurrentDictionary<string, ProjectStateLibs> _projects = new(StringComparer.OrdinalIgnoreCase);
 
@@ -59,11 +60,20 @@ internal sealed class UnusedLibsLogger
 
     public UnusedLibsLogger(IEventSource eventSource, IEventRedirector buildEventRedirector)
     {
+        _eventSource = eventSource;
         _buildEventRedirector = buildEventRedirector;
 
         eventSource.TaskStarted += OnTaskStarted;
         eventSource.TaskFinished += OnTaskFinished;
         eventSource.MessageRaised += OnMessageRaised;
+    }
+
+    // Mainly for testing
+    public void Dispose()
+    {
+        _eventSource.TaskStarted -= OnTaskStarted;
+        _eventSource.TaskFinished -= OnTaskFinished;
+        _eventSource.MessageRaised -= OnMessageRaised;
     }
 
     private void OnTaskStarted(object sender, TaskStartedEventArgs e)
@@ -76,7 +86,7 @@ internal sealed class UnusedLibsLogger
 
     private void OnTaskFinished(object sender, TaskFinishedEventArgs e)
     {
-        if (string.IsNullOrEmpty(e.ProjectFile) || e.TaskName != LinkTaskName)
+        if (string.IsNullOrEmpty(e.ProjectFile) || e.TaskName != LinkTaskName || !e.Succeeded)
         {
             return;
         }
