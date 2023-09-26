@@ -1,5 +1,0 @@
-# https://docs.codecov.com/docs/codecov-yaml
-
-codecov:
-  # No need to measure or report coverage on test code.
-  ignore: "*Tests.cs"
