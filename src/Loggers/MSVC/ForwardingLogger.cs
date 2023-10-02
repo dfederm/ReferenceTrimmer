@@ -7,7 +7,7 @@ namespace ReferenceTrimmer.Loggers.MSVC;
 /// </summary>
 public sealed class ForwardingLogger : IForwardingLogger
 {
-    private readonly List<object> _loggerList = new();
+    private UnusedLibsLogger? _logger;
 
     /// <summary>
     /// Gets or sets the level of detail to show in the event log.
@@ -44,7 +44,7 @@ public sealed class ForwardingLogger : IForwardingLogger
     /// </summary>
     public void Initialize(IEventSource eventSource)
     {
-        _loggerList.Add(new UnusedLibsLogger(eventSource, BuildEventRedirector!));
+        _logger = new UnusedLibsLogger(eventSource, BuildEventRedirector!);
     }
 
     /// <summary>
@@ -52,6 +52,6 @@ public sealed class ForwardingLogger : IForwardingLogger
     /// </summary>
     public void Shutdown()
     {
-        _loggerList.Clear();
+        _logger?.Dispose();
     }
 }
