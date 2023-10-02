@@ -18,6 +18,9 @@
     <ProjectReference Include="..\Tasks\ReferenceTrimmer.Tasks.csproj"
                       OutputItemType="ReferenceTrimmerOutputGroup"
                       PackagePath="build" />
+    <ProjectReference Include="..\Loggers\ReferenceTrimmer.Loggers.csproj"
+                      OutputItemType="ReferenceTrimmerOutputGroup"
+                      PackagePath="build" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="build\*">

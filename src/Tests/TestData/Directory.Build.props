@@ -1,0 +1,13 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Per https://github.com/dotnet/roslyn/issues/66188 /doc param is required for accurate results -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <!-- Ensure `MSBuild /t:Restore` works for .vcxproj. See README.md.
+         Enable NuGet TargetMonikers fallback to vcxproj. https://github.com/japj/CppWithNuGetPackageReference/blob/master/Directory.Build.props -->
+    <_NuGetTargetFallbackMoniker>$(_NuGetTargetFallbackMoniker);native,Version=v0.0</_NuGetTargetFallbackMoniker>
+  </PropertyGroup>
+
+</Project>

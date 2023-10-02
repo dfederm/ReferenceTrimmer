@@ -21,6 +21,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v2
 
+      - name: Run vcvarsall.bat on Windows for MSVC testing
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Restore
         run: dotnet restore -bl:logs/restore.binlog
 

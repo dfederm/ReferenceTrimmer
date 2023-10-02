@@ -1,6 +1,25 @@
-<?xml version="1.0" encoding="utf-8"?>
 <Project>
+
   <PropertyGroup>
-    <ReferenceTrimmerTasksAssembly Condition="'$(ReferenceTrimmerTasksAssembly)' == ''">$(MSBuildThisFileDirectory)ReferenceTrimmer.Tasks.dll</ReferenceTrimmerTasksAssembly>
+    <ReferenceTrimmerTasksAssembly Condition=" '$(ReferenceTrimmerTasksAssembly)' == '' ">$(MSBuildThisFileDirectory)ReferenceTrimmer.Tasks.dll</ReferenceTrimmerTasksAssembly>
   </PropertyGroup>
+
+  <ItemDefinitionGroup Condition=" '$(EnableReferenceTrimmer)' != 'false' and '$(ReferenceTrimmerEnableVcxproj)' != 'false' ">
+    <Link>
+        <!-- Enable link.exe traceouts of unused libraries and delay-load DLLs from vcxproj projects.
+             This will often contain system libraries but can also include .lib files from
+             referenced projects, which can indicate unneeded proj-to-proj dependencies,
+             and libraries from packages that are unneeded. Example output text at the
+             end of link's stdout stream:
+             
+             Unused libraries:
+               c:\WindowsSdk\lib\10.0.22000.0\um\x64\gdi32.lib
+               c:\WindowsSdk\lib\10.0.22000.0\um\x64\winspool.lib
+               c:\WindowsSdk\lib\10.0.22000.0\um\x64\comdlg32.lib
+               c:\WindowsSdk\lib\10.0.22000.0\um\x64\shell32.lib
+             -->
+        <AdditionalOptions>/VERBOSE:UNUSEDLIBS /VERBOSE:UNUSEDDELAYLOAD %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+
 </Project>
