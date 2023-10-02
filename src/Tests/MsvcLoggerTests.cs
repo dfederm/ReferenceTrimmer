@@ -2,7 +2,6 @@ using Microsoft.Build.Framework;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReferenceTrimmer.Loggers.MSVC;
 
-#pragma warning disable 0067  // Unused members
 #pragma warning disable CA1707  // Underscores in test names
 
 namespace ReferenceTrimmer.Tests;
@@ -194,6 +193,7 @@ public sealed class MsvcLoggerTests
         var eventSource = new MockEventSource();
         var centralLogger = new CentralLogger();
         centralLogger.Initialize(eventSource);
+        eventSource.AssertExpectedCentralLoggerEventSubscriptions();
         eventSource.SendCustomEvent(new NonUnusedLibCustomEventArgs());
         eventSource.SendCustomEvent(new UnusedLibsCustomBuildEventArgs());
         centralLogger.Shutdown();
@@ -210,6 +210,7 @@ public sealed class MsvcLoggerTests
         var eventSource = new MockEventSource();
         var centralLogger = new CentralLogger();
         centralLogger.Initialize(eventSource);
+        eventSource.AssertExpectedCentralLoggerEventSubscriptions();
         eventSource.SendCustomEvent(new UnusedLibsCustomBuildEventArgs(message: "Unused libraries!",
             projectPath: "a.proj", unusedLibraryPathsJson: "{ \"aProp\": \"aValue\" }"));
         eventSource.SendCustomEvent(new UnusedLibsCustomBuildEventArgs(message: "Unused libraries 2!",

@@ -32,7 +32,6 @@ internal sealed class UnusedLibsLogger : IDisposable
         "winspool.lib",
     };
 
-
     private enum State
     {
         LinkStarted,
@@ -78,7 +77,7 @@ internal sealed class UnusedLibsLogger : IDisposable
 
     private void OnTaskStarted(object sender, TaskStartedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(e.ProjectFile) && e.TaskName == LinkTaskName)
+        if (!string.IsNullOrEmpty(e.ProjectFile) && e.TaskName.Equals(LinkTaskName, StringComparison.OrdinalIgnoreCase))
         {
             _projects[e.ProjectFile] = new ProjectStateLibs { ProjectState = State.LinkStarted };
         }
