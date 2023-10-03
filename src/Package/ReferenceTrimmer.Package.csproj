@@ -10,6 +10,9 @@
     <IncludeSymbols>false</IncludeSymbols>
     <PackageOutputPath>$(RepoRoot)\artifacts</PackageOutputPath>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Avoid cycle when dogfooding the published package. -->
+    <DisableRefTrimPackageRef>true</DisableRefTrimPackageRef>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Analyzer\ReferenceTrimmer.Analyzer.csproj"
