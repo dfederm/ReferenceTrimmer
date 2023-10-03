@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
 
+  <!-- Dogfooding - add the latest ReferenceTrimmer package to this repo's build.
+       Condition is used in src\Package\ReferenceTrimmer.Package.csproj to avoid a cycle. -->
+  <ItemGroup Condition=" '$(DisableRefTrimPackageRef)' != 'true' ">
+    <PackageReference Include="ReferenceTrimmer" Version="3.*" PrivateAssets="All" />
+  </ItemGroup>
+
   <PropertyGroup>
     <RepoRoot>$(MSBuildThisFileDirectory.TrimEnd('\\'))</RepoRoot>
     <Nullable>Enable</Nullable>
