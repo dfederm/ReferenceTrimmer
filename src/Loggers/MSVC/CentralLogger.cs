@@ -13,7 +13,7 @@ public sealed class CentralLogger : Logger
     private bool _firstEvent = true;
     private string? _jsonLogFilePath;
 
-    internal const string JsonLogFileName = UnusedLibsLogger.HelpKeyword + ".json.log";
+    internal const string JsonLogFileName = ForwardingLogger.HelpKeyword + ".json.log";
 
     /// <inheritdoc />
     public override void Initialize(IEventSource eventSource)

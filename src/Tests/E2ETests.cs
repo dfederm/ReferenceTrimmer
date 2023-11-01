@@ -458,7 +458,7 @@ public sealed class E2ETests
 
         TestContext?.WriteLine($"Log directory: {logDirBase}");
 
-        string unusedLibraryLogPath = Path.Combine(testDataSourcePath, UnusedLibsLogger.HelpKeyword + ".json.log");
+        string unusedLibraryLogPath = Path.Combine(testDataSourcePath, ForwardingLogger.HelpKeyword + ".json.log");
         if (File.Exists(unusedLibraryLogPath))
         {
             File.Delete(unusedLibraryLogPath);

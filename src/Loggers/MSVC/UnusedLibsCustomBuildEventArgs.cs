@@ -3,8 +3,8 @@ using Microsoft.Build.Framework;
 namespace ReferenceTrimmer.Loggers.MSVC;
 
 /// <summary>
-/// Passes the unused library information from <see cref="ForwardingLogger"/>/<see cref="CentralLogger"/>
-/// to <see cref="UnusedLibsLogger"/>. Note that the MSBuild binary logger will serialize this event in its
+/// Passes the unused library information from <see cref="ForwardingLogger"/> to
+/// <see cref="CentralLogger"/>. Note that the MSBuild binary logger will serialize this event in its
 /// entirety, so to aid complete debugging fully analyzed information is passed here.
 /// </summary>
 [Serializable]
@@ -20,7 +20,7 @@ internal sealed class UnusedLibsCustomBuildEventArgs : CustomBuildEventArgs
         string message,
         string projectPath,
         string unusedLibraryPathsJson)
-        : base(message, UnusedLibsLogger.HelpKeyword, senderName: projectPath)
+        : base(message, ForwardingLogger.HelpKeyword, senderName: projectPath)
     {
         ProjectPath = projectPath;
         UnusedLibraryPathsJson = unusedLibraryPathsJson;
