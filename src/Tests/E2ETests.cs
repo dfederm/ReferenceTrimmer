@@ -290,6 +290,14 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public Task ReferenceTrimmerDisabled()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public async Task LegacyStyleProject()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
