@@ -62,6 +62,13 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
     private static void DumpUsedReferences(CompilationAnalysisContext context)
     {
+        DeclaredReferences? declaredReferences = GetDeclaredReferences(context);
+        if (declaredReferences == null)
+        {
+            // Reference Trimmer is disabled
+            return;
+        }
+
         Compilation compilation = context.Compilation;
         if (compilation.SyntaxTrees.FirstOrDefault()?.Options.DocumentationMode == DocumentationMode.None)
         {
@@ -70,13 +77,6 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
         if (!compilation.Options.Errors.IsEmpty)
         {
-            return;
-        }
-
-        DeclaredReferences? declaredReferences = GetDeclaredReferences(context);
-        if (declaredReferences == null)
-        {
-            // Reference Trimmer is disabled
             return;
         }
 
