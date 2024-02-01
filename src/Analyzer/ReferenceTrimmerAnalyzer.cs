@@ -10,6 +10,7 @@ namespace ReferenceTrimmer.Analyzer;
 public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 {
     private const string DeclaredReferencesFileName = "_ReferenceTrimmer_DeclaredReferences.tsv";
+    private const string UsedReferencesFileName = "_ReferenceTrimmer_UsedReferences.tsv";
 
     private static readonly DiagnosticDescriptor RT0000Descriptor = new(
         "RT0000",
@@ -91,7 +92,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        File.WriteAllLines(declaredReferencesPath + ".out", usedReferences);
+        File.WriteAllLines(Path.Combine(Path.GetDirectoryName(declaredReferencesPath), UsedReferencesFileName), usedReferences);
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
         foreach (DeclaredReference declaredReference in declaredReferences.References)
