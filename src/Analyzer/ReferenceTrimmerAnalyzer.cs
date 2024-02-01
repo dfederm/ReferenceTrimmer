@@ -62,13 +62,14 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
     private static void DumpUsedReferences(CompilationAnalysisContext context)
     {
-        DeclaredReferences? declaredReferences = GetDeclaredReferences(context);
-        if (declaredReferences == null)
+        string? declaredReferencesPath = GetDeclaredReferencesPath(context);
+        if (declaredReferencesPath == null)
         {
             // Reference Trimmer is disabled
             return;
         }
 
+        DeclaredReferences declaredReferences = DeclaredReferences.ReadFromFile(declaredReferencesPath);
         Compilation compilation = context.Compilation;
         if (compilation.SyntaxTrees.FirstOrDefault()?.Options.DocumentationMode == DocumentationMode.None)
         {
@@ -89,6 +90,8 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 usedReferences.Add(assemblyName);
             }
         }
+
+        File.WriteAllLines(declaredReferencesPath + ".out", usedReferences);
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
         foreach (DeclaredReference declaredReference in declaredReferences.References)
@@ -139,13 +142,13 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static DeclaredReferences? GetDeclaredReferences(CompilationAnalysisContext context)
+    private static string? GetDeclaredReferencesPath(CompilationAnalysisContext context)
     {
         foreach (AdditionalText additionalText in context.Options.AdditionalFiles)
         {
             if (Path.GetFileName(additionalText.Path).Equals(DeclaredReferencesFileName, StringComparison.Ordinal))
             {
-                return DeclaredReferences.ReadFromFile(additionalText.Path);
+                return additionalText.Path;
             }
         }
 
