@@ -12,12 +12,12 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Git Versioning requires a non-shallow clone
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v2
+        uses: actions/setup-dotnet@v3
 
       - name: Run vcvarsall.bat on Windows for MSVC testing
         uses: ilammy/msvc-dev-cmd@v1
@@ -31,29 +31,29 @@ jobs:
       - name: Test
         run: dotnet test --configuration Release --no-build --logger trx --results-directory TestResults --collect:"Code Coverage;Format=Cobertura"
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          directory: ./TestResults
-          files: "*.cobertura.xml"
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@v4
+      #   with:
+      #     directory: ./TestResults
+      #     files: "*.cobertura.xml"
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.os }}
           path: ./TestResults
         if: ${{ always() }} # Always run this step even on failure
 
       - name: Upload logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: logs
+          name: logs-${{ matrix.os }}
           path: ./logs
         if: ${{ always() }} # Always run this step even on failure
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: artifacts
+          name: artifacts-${{ matrix.os }}
           path: ./artifacts
         if: ${{ always() }} # Always run this step even on failure
