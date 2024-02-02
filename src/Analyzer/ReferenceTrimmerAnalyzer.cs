@@ -10,6 +10,7 @@ namespace ReferenceTrimmer.Analyzer;
 public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 {
     private const string DeclaredReferencesFileName = "_ReferenceTrimmer_DeclaredReferences.tsv";
+    private const string UsedReferencesFileName = "_ReferenceTrimmer_UsedReferences.log";
 
     private static readonly DiagnosticDescriptor RT0000Descriptor = new(
         "RT0000",
@@ -62,13 +63,14 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
     private static void DumpUsedReferences(CompilationAnalysisContext context)
     {
-        DeclaredReferences? declaredReferences = GetDeclaredReferences(context);
-        if (declaredReferences == null)
+        string? declaredReferencesPath = GetDeclaredReferencesPath(context);
+        if (declaredReferencesPath == null)
         {
             // Reference Trimmer is disabled
             return;
         }
 
+        DeclaredReferences declaredReferences = DeclaredReferences.ReadFromFile(declaredReferencesPath);
         Compilation compilation = context.Compilation;
         if (compilation.SyntaxTrees.FirstOrDefault()?.Options.DocumentationMode == DocumentationMode.None)
         {
@@ -89,6 +91,8 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 usedReferences.Add(assemblyName);
             }
         }
+
+        File.WriteAllLines(Path.Combine(Path.GetDirectoryName(declaredReferencesPath), UsedReferencesFileName), usedReferences);
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
         foreach (DeclaredReference declaredReference in declaredReferences.References)
@@ -139,13 +143,13 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static DeclaredReferences? GetDeclaredReferences(CompilationAnalysisContext context)
+    private static string? GetDeclaredReferencesPath(CompilationAnalysisContext context)
     {
         foreach (AdditionalText additionalText in context.Options.AdditionalFiles)
         {
             if (Path.GetFileName(additionalText.Path).Equals(DeclaredReferencesFileName, StringComparison.Ordinal))
             {
-                return DeclaredReferences.ReadFromFile(additionalText.Path);
+                return additionalText.Path;
             }
         }
 
