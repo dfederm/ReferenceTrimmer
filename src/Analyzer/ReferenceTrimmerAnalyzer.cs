@@ -10,7 +10,7 @@ namespace ReferenceTrimmer.Analyzer;
 public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 {
     private const string DeclaredReferencesFileName = "_ReferenceTrimmer_DeclaredReferences.tsv";
-    private const string UsedReferencesFileName = "_ReferenceTrimmer_UsedReferences.tsv";
+    private const string UsedReferencesFileName = "_ReferenceTrimmer_UsedReferences.log";
 
     private static readonly DiagnosticDescriptor RT0000Descriptor = new(
         "RT0000",
