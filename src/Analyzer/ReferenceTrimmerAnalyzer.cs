@@ -87,7 +87,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         {
             if (metadataReference.Display != null)
             {
-                string assemblyName = AssemblyName.GetAssemblyName(metadataReference.Display).Name;
+                string assemblyName = AssemblyName.GetAssemblyName(metadataReference.Display).CodeBase;
                 usedReferences.Add(assemblyName);
             }
         }

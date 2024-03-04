@@ -100,14 +100,14 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         referencePath = referenceHintPath;
 
                         // If a hint path is given and exists, use that assembly's name.
-                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).Name;
+                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).CodeBase;
                     }
                     else if (File.Exists(referenceSpec))
                     {
                         referencePath = referenceSpec;
 
                         // If the spec is an existing file, use that assembly's name.
-                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).Name;
+                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).CodeBase;
                     }
                     else
                     {
@@ -151,7 +151,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         continue;
                     }
 
-                    string projectReferenceAssemblyName = new AssemblyName(projectReference.GetMetadata("FusionName")).Name;
+                    string projectReferenceAssemblyName = AssemblyName.GetAssemblyName(projectReference.ItemSpec).CodeBase;
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
                     declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyName, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
@@ -255,7 +255,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 .Select(path =>
                 {
                     var fullPath = Path.Combine(nugetLibraryAbsolutePath, path);
-                    return AssemblyName.GetAssemblyName(fullPath).Name;
+                    return AssemblyName.GetAssemblyName(fullPath).CodeBase;
                 })
                 .ToList();
 
