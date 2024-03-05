@@ -38,7 +38,7 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public Task UsedProjectReferenceReferenceProduceReferenceAssembly()
+    public Task UsedProjectReferenceProduceReferenceAssembly()
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
