@@ -97,17 +97,17 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
                     {
-                        referencePath = referenceHintPath;
+                        referencePath = Path.GetFullPath(referenceHintPath);
 
                         // If a hint path is given and exists, use that assembly's name.
-                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceHintPath).CodeBase;
+                        referenceAssemblyName = new Uri(referencePath).LocalPath;
                     }
                     else if (File.Exists(referenceSpec))
                     {
-                        referencePath = referenceSpec;
+                        referencePath = Path.GetFullPath(referenceSpec);
 
                         // If the spec is an existing file, use that assembly's name.
-                        referenceAssemblyName = AssemblyName.GetAssemblyName(referenceSpec).CodeBase;
+                        referenceAssemblyName = new Uri(referencePath).LocalPath;
                     }
                     else
                     {
@@ -120,7 +120,6 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     // If the reference is under the nuget package root, it's likely a Reference added in a package's props or targets.
                     if (NuGetPackageRoot != null && referencePath != null)
                     {
-                        referencePath = Path.GetFullPath(referencePath);
                         if (referencePath.StartsWith(NuGetPackageRoot))
                         {
                             continue;
@@ -151,7 +150,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         continue;
                     }
 
-                    string projectReferenceAssemblyName = AssemblyName.GetAssemblyName(projectReference.ItemSpec).CodeBase;
+                    string projectReferenceAssemblyName = new Uri(projectReference.ItemSpec).LocalPath;
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
                     declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyName, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
@@ -255,7 +254,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 .Select(path =>
                 {
                     var fullPath = Path.Combine(nugetLibraryAbsolutePath, path);
-                    return AssemblyName.GetAssemblyName(fullPath).CodeBase;
+                    return new Uri(fullPath).LocalPath;
                 })
                 .ToList();
 

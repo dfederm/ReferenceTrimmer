@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using ReferenceTrimmer.Shared;
@@ -87,7 +86,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         {
             if (metadataReference.Display != null)
             {
-                string assemblyName = AssemblyName.GetAssemblyName(metadataReference.Display).CodeBase;
+                string assemblyName = new Uri(metadataReference.Display).LocalPath;
                 usedReferences.Add(assemblyName);
             }
         }
