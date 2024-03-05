@@ -33,6 +33,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     public ITaskItem[]? References { get; set; }
 
+    public ITaskItem[]? ResolvedReferences { get; set; }
+
     public ITaskItem[]? ProjectReferences { get; set; }
 
     public ITaskItem[]? PackageReferences { get; set; }
@@ -99,22 +101,20 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     {
                         referencePath = Path.GetFullPath(referenceHintPath);
 
-                        // If a hint path is given and exists, use that assembly's name.
                         referenceAssemblyName = new Uri(referencePath).LocalPath;
                     }
                     else if (File.Exists(referenceSpec))
                     {
                         referencePath = Path.GetFullPath(referenceSpec);
 
-                        // If the spec is an existing file, use that assembly's name.
                         referenceAssemblyName = new Uri(referencePath).LocalPath;
                     }
                     else
                     {
-                        referencePath = null;
+                        var resolvedReference = ResolvedReferences.SingleOrDefault(rr => string.Equals(rr.GetMetadata("OriginalItemSpec"), referenceSpec, StringComparison.OrdinalIgnoreCase));
+                        referencePath = resolvedReference is null ? null : resolvedReference.ItemSpec;
 
-                        // The assembly name is probably just the item spec.
-                        referenceAssemblyName = referenceSpec;
+                        referenceAssemblyName = referencePath ?? referenceSpec;
                     }
 
                     // If the reference is under the nuget package root, it's likely a Reference added in a package's props or targets.
