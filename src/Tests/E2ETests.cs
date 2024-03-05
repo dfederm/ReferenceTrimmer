@@ -38,7 +38,26 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public Task UsedProjectReferenceReferenceProduceReferenceAssembly()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public Task UnusedProjectReference()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
+            });
+    }
+
+    [TestMethod]
+    public Task UnusedProjectReferenceProduceReferenceAssembly()
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
