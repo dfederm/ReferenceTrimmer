@@ -195,6 +195,37 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public async Task UnusedReferenceFromGac()
+    {
+        // The GAC is Windows-specific
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive();
+        }
+
+        await RunMSBuildAsync(
+            projectFile: "Library.csproj",
+            expectedWarnings: new[]
+            {
+                new Warning("RT0001: Reference Microsoft.Office.Interop.Outlook can be removed", "Library.csproj"),
+            });
+    }
+
+    [TestMethod]
+    public async Task UsedReferenceFromGac()
+    {
+        // The GAC is Windows-specific
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive();
+        }
+
+        await RunMSBuildAsync(
+            projectFile: "Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public Task UsedPackageReference()
     {
         return RunMSBuildAsync(
