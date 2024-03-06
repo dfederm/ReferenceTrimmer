@@ -27,7 +27,7 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
 
         foreach (DeclaredReference reference in References)
         {
-            writer.Write(reference.FilePath);
+            writer.Write(reference.AssemblyPath);
             writer.Write(FieldDelimiter);
             writer.Write(KindEnumToString[reference.Kind]);
             writer.Write(FieldDelimiter);
@@ -63,6 +63,6 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
     }
 }
 
-internal record DeclaredReference(string FilePath, DeclaredReferenceKind Kind, string Spec);
+internal record DeclaredReference(string AssemblyPath, DeclaredReferenceKind Kind, string Spec);
 
 internal enum DeclaredReferenceKind { Reference, ProjectReference, PackageReference }

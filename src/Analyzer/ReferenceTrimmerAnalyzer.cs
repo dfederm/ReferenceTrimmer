@@ -99,7 +99,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             {
                 case DeclaredReferenceKind.Reference:
                 {
-                    if (!usedReferences.Contains(declaredReference.FilePath))
+                    if (!usedReferences.Contains(declaredReference.AssemblyPath))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0001Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -108,7 +108,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 }
                 case DeclaredReferenceKind.ProjectReference:
                 {
-                    if (!usedReferences.Contains(declaredReference.FilePath))
+                    if (!usedReferences.Contains(declaredReference.AssemblyPath))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0002Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -123,7 +123,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                         packageAssembliesDict.Add(declaredReference.Spec, packageAssemblies);
                     }
 
-                    packageAssemblies.Add(declaredReference.FilePath);
+                    packageAssemblies.Add(declaredReference.AssemblyPath);
                     break;
                 }
             }
