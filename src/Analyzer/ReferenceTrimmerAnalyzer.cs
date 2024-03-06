@@ -86,8 +86,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         {
             if (metadataReference.Display != null)
             {
-                string assemblyName = new Uri(metadataReference.Display).LocalPath;
-                usedReferences.Add(assemblyName);
+                usedReferences.Add(metadataReference.Display);
             }
         }
 
@@ -100,7 +99,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             {
                 case DeclaredReferenceKind.Reference:
                 {
-                    if (!usedReferences.Contains(declaredReference.AssemblyName))
+                    if (!usedReferences.Contains(declaredReference.FilePath))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0001Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -109,7 +108,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 }
                 case DeclaredReferenceKind.ProjectReference:
                 {
-                    if (!usedReferences.Contains(declaredReference.AssemblyName))
+                    if (!usedReferences.Contains(declaredReference.FilePath))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0002Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -124,7 +123,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                         packageAssembliesDict.Add(declaredReference.Spec, packageAssemblies);
                     }
 
-                    packageAssemblies.Add(declaredReference.AssemblyName);
+                    packageAssemblies.Add(declaredReference.FilePath);
                     break;
                 }
             }
