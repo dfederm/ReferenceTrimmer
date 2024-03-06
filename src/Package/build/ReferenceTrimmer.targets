@@ -18,7 +18,7 @@
       <_ReferenceTrimmerReferences Include="@(Reference)" />
       <_ReferenceTrimmerReferences Remove="@(_NETStandardLibraryNETFrameworkLib -> '%(FileName)')" />
 
-      <_ResolvedReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ResolveAssemblyReference'"/>
+      <_ReferenceTrimmerResolvedReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ResolveAssemblyReference'"/>
 
       <_ReferenceTrimmerProjectReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ProjectReference'" />
     </ItemGroup>
@@ -27,7 +27,7 @@
       OutputFile="$(_ReferenceTrimmerDeclaredReferencesFile)"
       MSBuildProjectFile="$(MSBuildProjectFile)"
       References="@(_ReferenceTrimmerReferences)"
-      ResolvedReferences="@(_ResolvedReferences)"
+      ResolvedReferences="@(_ReferenceTrimmerResolvedReferences)"
       ProjectReferences="@(_ReferenceTrimmerProjectReferences)"
       PackageReferences="@(PackageReference)"
       ProjectAssetsFile="$(ProjectAssetsFile)"
