@@ -1,4 +1,6 @@
-﻿namespace ReferenceTrimmer.Shared;
+using System.Text;
+
+namespace ReferenceTrimmer.Shared;
 
 internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
 {
