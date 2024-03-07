@@ -34,7 +34,7 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
             writer.Append(reference.Spec);
             writer.AppendLine();
         }
-        
+
         string newContent = writer.ToString();
         if (File.Exists(filePath))
         {
@@ -44,7 +44,7 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
                 return;
             }
         }
-        
+
         File.WriteAllText(filePath, newContent);
     }
 
