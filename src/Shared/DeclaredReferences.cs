@@ -1,4 +1,6 @@
-﻿namespace ReferenceTrimmer.Shared;
+using System.Text;
+
+namespace ReferenceTrimmer.Shared;
 
 internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
 {
@@ -22,18 +24,28 @@ internal record DeclaredReferences(IReadOnlyList<DeclaredReference> References)
 
     public void SaveToFile(string filePath)
     {
-        using FileStream stream = File.Create(filePath);
-        using StreamWriter writer = new(stream);
-
+        StringBuilder writer = new();
         foreach (DeclaredReference reference in References)
         {
-            writer.Write(reference.AssemblyPath);
-            writer.Write(FieldDelimiter);
-            writer.Write(KindEnumToString[reference.Kind]);
-            writer.Write(FieldDelimiter);
-            writer.Write(reference.Spec);
-            writer.WriteLine();
+            writer.Append(reference.AssemblyPath);
+            writer.Append(FieldDelimiter);
+            writer.Append(KindEnumToString[reference.Kind]);
+            writer.Append(FieldDelimiter);
+            writer.Append(reference.Spec);
+            writer.AppendLine();
         }
+
+        string newContent = writer.ToString();
+        if (File.Exists(filePath))
+        {
+            string existing = File.ReadAllText(filePath);
+            if (string.Equals(existing, newContent, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        File.WriteAllText(filePath, newContent);
     }
 
     public static DeclaredReferences ReadFromFile(string filePath)
