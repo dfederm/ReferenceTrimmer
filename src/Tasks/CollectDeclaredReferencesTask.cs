@@ -145,10 +145,11 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         continue;
                     }
 
-                    string projectReferenceAssemblyPath = Path.GetFullPath(projectReference.GetMetadata("ReferenceAssembly"));
+                    string referenceAssemblyPath = projectReference.GetMetadata("ReferenceAssembly");
+                    string projectAssemblyPath = Path.GetFullPath(string.IsNullOrWhiteSpace(referenceAssemblyPath) ? projectReference.GetMetadata("Identity") : referenceAssemblyPath);
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
-                    declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
+                    declaredReferences.Add(new DeclaredReference(projectAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
                 }
             }
 
