@@ -90,7 +90,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        File.WriteAllLines(Path.Combine(Path.GetDirectoryName(declaredReferencesPath), UsedReferencesFileName), usedReferences);
+        WriteUsedReferencesToFile(usedReferences, declaredReferencesPath);
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
         foreach (DeclaredReference declaredReference in declaredReferences.References)
@@ -138,6 +138,30 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             {
                 context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, packageName));
             }
+        }
+    }
+
+    private static void WriteUsedReferencesToFile(HashSet<string> usedReferences, string declaredReferencesPath)
+    {
+        string filePath = Path.Combine(Path.GetDirectoryName(declaredReferencesPath), UsedReferencesFileName);
+
+        string text = string.Join(Environment.NewLine, usedReferences.OrderBy(s => s));
+
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                string oldText = File.ReadAllText(filePath);
+                if (string.Equals(text, oldText, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+
+            File.WriteAllText(filePath, text);
+        }
+        catch
+        {
         }
     }
 
