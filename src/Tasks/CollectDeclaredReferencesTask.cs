@@ -145,7 +145,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         continue;
                     }
 
-                    string projectReferenceAssemblyPath = Path.GetFullPath(projectReference.GetMetadata("ReferenceAssembly"));
+                    string projectReferenceAssemblyPath = Path.GetFullPath(projectReference.ItemSpec);
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
                     declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));

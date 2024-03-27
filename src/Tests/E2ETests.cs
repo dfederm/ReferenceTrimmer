@@ -46,6 +46,14 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public Task UsedProjectReferenceNoReferenceAssembly()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public Task UnusedProjectReference()
     {
         return RunMSBuildAsync(
@@ -58,6 +66,17 @@ public sealed class E2ETests
 
     [TestMethod]
     public Task UnusedProjectReferenceProduceReferenceAssembly()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
+            });
+    }
+
+    [TestMethod]
+    public Task UnusedProjectReferenceNoReferenceAssembly()
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -427,6 +446,14 @@ public sealed class E2ETests
                 @"\DLL.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
             },
             expectUnusedMsvcLibrariesLog: true);
+    }
+
+    [TestMethod]
+    public Task WpfApp()
+    {
+        return RunMSBuildAsync(
+            projectFile: "WpfApp/WpfApp.csproj",
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()

@@ -18,9 +18,9 @@
       <_ReferenceTrimmerReferences Include="@(Reference)" />
       <_ReferenceTrimmerReferences Remove="@(_NETStandardLibraryNETFrameworkLib -> '%(FileName)')" />
 
-      <_ReferenceTrimmerResolvedReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ResolveAssemblyReference'"/>
+      <_ReferenceTrimmerResolvedReferences Include="@(ReferencePathWithRefAssemblies)" Condition="'%(ReferencePathWithRefAssemblies.ReferenceSourceTarget)' == 'ResolveAssemblyReference'"/>
 
-      <_ReferenceTrimmerProjectReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ProjectReference'" />
+      <_ReferenceTrimmerProjectReferences Include="@(ReferencePathWithRefAssemblies)" Condition="'%(ReferencePathWithRefAssemblies.ReferenceSourceTarget)' == 'ProjectReference'" />
     </ItemGroup>
 
     <CollectDeclaredReferencesTask
