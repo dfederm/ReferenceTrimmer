@@ -448,6 +448,14 @@ public sealed class E2ETests
             expectUnusedMsvcLibrariesLog: true);
     }
 
+    [TestMethod]
+    public Task WpfApp()
+    {
+        return RunMSBuildAsync(
+            projectFile: "WpfApp/WpfApp.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
     {
         // On Windows, try to find Visual Studio
