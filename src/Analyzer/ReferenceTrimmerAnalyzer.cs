@@ -10,6 +10,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 {
     private const string DeclaredReferencesFileName = "_ReferenceTrimmer_DeclaredReferences.tsv";
     private const string UsedReferencesFileName = "_ReferenceTrimmer_UsedReferences.log";
+    private const string UnusedReferencesFileName = "_ReferenceTrimmer_UnusedReferences.log";
 
     private static readonly DiagnosticDescriptor RT0000Descriptor = new(
         "RT0000",
@@ -90,7 +91,18 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        WriteUsedReferencesToFile(usedReferences, declaredReferencesPath);
+        HashSet<string> unusedReferences = new(StringComparer.OrdinalIgnoreCase);
+        foreach (MetadataReference metadataReference in compilation.References)
+        {
+            if (metadataReference.Display != null)
+            {
+                unusedReferences.Add(metadataReference.Display);
+            }
+        }
+
+        unusedReferences.ExceptWith(usedReferences);
+
+        DumpReferencesInfo(usedReferences, unusedReferences, declaredReferencesPath);
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
         foreach (DeclaredReference declaredReference in declaredReferences.References)
@@ -141,12 +153,19 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void WriteUsedReferencesToFile(HashSet<string> usedReferences, string declaredReferencesPath)
+    private static void DumpReferencesInfo(HashSet<string> usedReferences, HashSet<string> unusedReferences, string declaredReferencesPath)
     {
-        string filePath = Path.Combine(Path.GetDirectoryName(declaredReferencesPath), UsedReferencesFileName);
-
+        string dir = Path.GetDirectoryName(declaredReferencesPath);
+        string filePath = Path.Combine(dir, UsedReferencesFileName);
         string text = string.Join(Environment.NewLine, usedReferences.OrderBy(s => s));
+        WriteFile(filePath, text);
+        filePath = Path.Combine(dir, UnusedReferencesFileName);
+        text = string.Join(Environment.NewLine, unusedReferences.OrderBy(s => s));
+        WriteFile(filePath, text);
+    }
 
+    private static void WriteFile(string filePath, string text)
+    {
         try
         {
             if (File.Exists(filePath))
