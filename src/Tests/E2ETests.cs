@@ -95,6 +95,14 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public Task UnusedProjectReferenceSuppressed()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public Task UnusedTransitiveProjectReference()
     {
         return RunMSBuildAsync(
