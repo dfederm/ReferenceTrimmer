@@ -5,10 +5,15 @@
   <PropertyGroup>
     <CoreCompileDependsOn Condition="'$(EnableReferenceTrimmer)' != 'false'">$(CoreCompileDependsOn);CollectDeclaredReferences</CoreCompileDependsOn>
   </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="EnableReferenceTrimmerDiagnostics"/>
+  </ItemGroup>
 
   <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences">
     <PropertyGroup>
       <_ReferenceTrimmerDeclaredReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_DeclaredReferences.tsv</_ReferenceTrimmerDeclaredReferencesFile>
+      <_ReferenceTrimmerUsedReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_UsedReferences.log</_ReferenceTrimmerUsedReferencesFile>
+      <_ReferenceTrimmerUnusedReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_UnusedReferences.log</_ReferenceTrimmerUnusedReferencesFile>
     </PropertyGroup>
     <ItemGroup>
       <!--
@@ -42,6 +47,8 @@
       <!-- https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Using%20Additional%20Files.md#in-a-project-file -->
       <AdditionalFiles Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
       <FileWrites Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
+      <FileWrites Include="$(_ReferenceTrimmerUsedReferencesFile)" Condition="'$(EnableReferenceTrimmerDiagnostics)'=='true'" />
+      <FileWrites Include="$(_ReferenceTrimmerUnusedReferencesFile)" Condition="'$(EnableReferenceTrimmerDiagnostics)'=='true'" />
     </ItemGroup>
   </Target>
 </Project>

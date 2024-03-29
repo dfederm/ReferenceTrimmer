@@ -54,6 +54,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             RT0002Descriptor,
             RT0003Descriptor);
 
+    /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
     {
         context.EnableConcurrentExecution();
@@ -91,18 +92,21 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        HashSet<string> unusedReferences = new(StringComparer.OrdinalIgnoreCase);
-        foreach (MetadataReference metadataReference in compilation.References)
+        var globalOptions = context.Options.AnalyzerConfigOptionsProvider.GlobalOptions;
+        if (globalOptions.TryGetValue("build_property.EnableReferenceTrimmerDiagnostics", out string? enableDiagnostics)
+            && string.Equals(enableDiagnostics, "true", StringComparison.OrdinalIgnoreCase))
         {
-            if (metadataReference.Display != null)
+            HashSet<string> unusedReferences = new(StringComparer.OrdinalIgnoreCase);
+            foreach (MetadataReference metadataReference in compilation.References)
             {
-                unusedReferences.Add(metadataReference.Display);
+                if (metadataReference.Display != null && !usedReferences.Contains(metadataReference.Display))
+                {
+                    unusedReferences.Add(metadataReference.Display);
+                }
             }
+
+            DumpReferencesInfo(usedReferences, unusedReferences, declaredReferencesPath);
         }
-
-        unusedReferences.ExceptWith(usedReferences);
-
-        DumpReferencesInfo(usedReferences, unusedReferences, declaredReferencesPath);
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
         foreach (DeclaredReference declaredReference in declaredReferences.References)
