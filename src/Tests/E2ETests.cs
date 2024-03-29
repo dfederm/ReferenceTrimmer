@@ -626,7 +626,11 @@ Actual warnings:
             }
         }
 
-        Assert.AreEqual(enableReferenceTrimmerDiagnostics, File.Exists(Path.Combine(testDataSourcePath, "Library", "obj", "Debug", "net472", "_ReferenceTrimmer_UsedReferences.log")));
-        Assert.AreEqual(enableReferenceTrimmerDiagnostics, File.Exists(Path.Combine(testDataSourcePath, "Library", "obj", "Debug", "net472", "_ReferenceTrimmer_UnusedReferences.log")));
+        string intermediateLibraryPath = Path.Combine(testDataSourcePath, "Library", "obj");
+        // local tests run debug, CI builds run release, thus the assertion needs to look for the file
+        var usedReferencesFiles = Directory.GetFiles(intermediateLibraryPath, "_ReferenceTrimmer_UsedReferences.log", SearchOption.AllDirectories);
+        var unusedReferencesFiles = Directory.GetFiles(intermediateLibraryPath, "_ReferenceTrimmer_UnusedReferences.log", SearchOption.AllDirectories);
+        Assert.AreEqual(enableReferenceTrimmerDiagnostics, usedReferencesFiles.Length == 1);
+        Assert.AreEqual(enableReferenceTrimmerDiagnostics, unusedReferencesFiles.Length == 1);
     }
 }
