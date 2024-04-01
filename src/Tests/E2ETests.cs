@@ -486,7 +486,7 @@ public sealed class E2ETests
 
             if (!string.IsNullOrEmpty(vsInstallDir))
             {
-                string msbuildExePath = Path.Combine(vsInstallDir, @"MSBuild\Current\Bin\MSBuild.exe");
+                string msbuildExePath = Path.Combine(vsInstallDir, @"MSBuild\Current\Bin\amd64\MSBuild.exe");
                 if (!File.Exists(msbuildExePath))
                 {
                     throw new InvalidOperationException($"Could not find MSBuild.exe path for unit tests: {msbuildExePath}");
@@ -500,43 +500,7 @@ public sealed class E2ETests
         return ("dotnet", "build");
     }
 
-    // From: https://docs.microsoft.com/en-us/dotnet/standard/io/how-to-copy-directories
-    private static void DirectoryCopy(string sourceDirName, string destDirName)
-    {
-        // Get the subdirectories for the specified directory.
-        var dir = new DirectoryInfo(sourceDirName);
-
-        if (!dir.Exists)
-        {
-            throw new DirectoryNotFoundException($"Source directory does not exist or could not be found: {sourceDirName}");
-        }
-
-        var subdirs = dir.GetDirectories();
-
-        // If the destination directory doesn't exist, create it.
-        if (!Directory.Exists(destDirName))
-        {
-            Directory.CreateDirectory(destDirName);
-        }
-
-        // Get the files in the directory and copy them to the new location.
-        var files = dir.GetFiles();
-        foreach (var file in files)
-        {
-            var destFile = Path.Combine(destDirName, file.Name);
-            file.CopyTo(destFile, false);
-        }
-
-        // Copy subdirectories and their contents to new location.
-        foreach (var subdir in subdirs)
-        {
-            var destSubdirName = Path.Combine(destDirName, subdir.Name);
-            DirectoryCopy(subdir.FullName, destSubdirName);
-        }
-    }
-
-    private async Task RunMSBuildAsync(string projectFile, Warning[] expectedWarnings, string[]? expectedConsoleOutputs = null, bool expectUnusedMsvcLibrariesLog = false,
-                                       bool enableReferenceTrimmerDiagnostics = false)
+    private async Task RunMSBuildAsync(string projectFile, Warning[] expectedWarnings, string[]? expectedConsoleOutputs = null, bool expectUnusedMsvcLibrariesLog = false, bool enableReferenceTrimmerDiagnostics = false)
     {
         var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext?.TestName ?? string.Empty));
 
