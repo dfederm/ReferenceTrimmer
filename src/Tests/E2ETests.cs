@@ -475,8 +475,7 @@ public sealed class E2ETests
 
             if (!string.IsNullOrEmpty(vsInstallDir))
             {
-                string msBuildPlatform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "amd64" : string.Empty;
-                string msbuildExePath = Path.Combine(vsInstallDir, @"MSBuild\Current\Bin", msBuildPlatform, "MSBuild.exe");
+                string msbuildExePath = Path.Combine(vsInstallDir, @"MSBuild\Current\Bin\amd64\MSBuild.exe");
                 if (!File.Exists(msbuildExePath))
                 {
                     throw new InvalidOperationException($"Could not find MSBuild.exe path for unit tests: {msbuildExePath}");
