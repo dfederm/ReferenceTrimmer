@@ -54,14 +54,17 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public Task UnusedProjectReference()
+    [DataRow(true)]
+    [DataRow(false)]
+    public Task UnusedProjectReference(bool enableReferenceTrimmerDiagnostics)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
                 new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
-            });
+            },
+            enableReferenceTrimmerDiagnostics: enableReferenceTrimmerDiagnostics);
     }
 
     [TestMethod]
@@ -88,6 +91,14 @@ public sealed class E2ETests
 
     [TestMethod]
     public Task UnusedProjectReferenceNoWarn()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
+    public Task UnusedProjectReferenceSuppressed()
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -513,7 +524,8 @@ public sealed class E2ETests
                              $"-bl:\"{binlogFilePath}\" " +
                              $"-flp1:logfile=\"{errorsFilePath}\";errorsonly " +
                              $"-flp2:logfile=\"{warningsFilePath}\";warningsonly " +
-                             $"-distributedlogger:CentralLogger,\"{loggersAssemblyPath}\"*ForwardingLogger,\"{loggersAssemblyPath}\"";
+                             $"-distributedlogger:CentralLogger,\"{loggersAssemblyPath}\"*ForwardingLogger,\"{loggersAssemblyPath}\" " +
+                             (enableReferenceTrimmerDiagnostics ? "-p:EnableReferenceTrimmerDiagnostics=true" : string.Empty);
 
         Process? process = Process.Start(
             new ProcessStartInfo
@@ -585,5 +597,11 @@ Actual warnings:
                 Assert.IsTrue(stdOut.Contains(expectedLogOutput, StringComparison.OrdinalIgnoreCase), $"Expected log output '{expectedLogOutput}' was not found. Full console stdout: {stdOut}{Environment.NewLine}Console stderr: {stdErr}");
             }
         }
+
+        // local tests run debug, CI builds run release, thus the assertion needs to look for the file
+        var usedReferencesFiles = Directory.GetFiles(testDataSourcePath, "_ReferenceTrimmer_UsedReferences.log", SearchOption.AllDirectories);
+        var unusedReferencesFiles = Directory.GetFiles(testDataSourcePath, "_ReferenceTrimmer_UnusedReferences.log", SearchOption.AllDirectories);
+        Assert.AreEqual(enableReferenceTrimmerDiagnostics, usedReferencesFiles.Length > 0);
+        Assert.AreEqual(enableReferenceTrimmerDiagnostics, unusedReferencesFiles.Length > 0);
     }
 }

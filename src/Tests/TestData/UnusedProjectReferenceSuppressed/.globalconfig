@@ -1,0 +1,3 @@
+is_global=true
+
+dotnet_diagnostic.RT0002.severity = suggestion
