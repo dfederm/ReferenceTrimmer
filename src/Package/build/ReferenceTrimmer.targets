@@ -3,13 +3,13 @@
   <UsingTask TaskName="CollectDeclaredReferencesTask" AssemblyFile="$(ReferenceTrimmerTasksAssembly)" />
 
   <PropertyGroup>
-    <CoreCompileDependsOn Condition="'$(EnableReferenceTrimmer)' != 'false'">$(CoreCompileDependsOn);CollectDeclaredReferences</CoreCompileDependsOn>
+    <CoreCompileDependsOn>$(CoreCompileDependsOn);CollectDeclaredReferences</CoreCompileDependsOn>
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="EnableReferenceTrimmerDiagnostics"/>
   </ItemGroup>
 
-  <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences">
+  <Target Name="CollectDeclaredReferences" DependsOnTargets="$(CollectDeclaredReferencesDependsOn);ResolveAssemblyReferences;PrepareProjectReferences" Condition="'$(EnableReferenceTrimmer)' != 'false'">
     <PropertyGroup>
       <_ReferenceTrimmerDeclaredReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_DeclaredReferences.tsv</_ReferenceTrimmerDeclaredReferencesFile>
       <_ReferenceTrimmerUsedReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_UsedReferences.log</_ReferenceTrimmerUsedReferencesFile>
