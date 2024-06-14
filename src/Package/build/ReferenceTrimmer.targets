@@ -10,13 +10,13 @@
     <CompilerVisibleProperty Include="EnableReferenceTrimmerDiagnostics"/>
   </ItemGroup>
 
-  <Target Name="CollectDeclaredReferences" DependsOnTargets="$(CollectDeclaredReferencesDependsOn)" Condition="'$(EnableReferenceTrimmer)' != 'false'">
-    <PropertyGroup>
+  <Target Name="CollectDeclaredReferences" DependsOnTargets="$(CollectDeclaredReferencesDependsOn)">
+    <PropertyGroup Condition="'$(EnableReferenceTrimmer)' != 'false'">
       <_ReferenceTrimmerDeclaredReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_DeclaredReferences.tsv</_ReferenceTrimmerDeclaredReferencesFile>
       <_ReferenceTrimmerUsedReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_UsedReferences.log</_ReferenceTrimmerUsedReferencesFile>
       <_ReferenceTrimmerUnusedReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_UnusedReferences.log</_ReferenceTrimmerUnusedReferencesFile>
     </PropertyGroup>
-    <ItemGroup>
+    <ItemGroup Condition="'$(EnableReferenceTrimmer)' != 'false'">
       <!--
         Microsoft.NET.Build.Extensions may add many references to help bridge the gap with older
         versions of .NET Framework and .NET Standard. Avoid reporting these as unused.
@@ -30,6 +30,7 @@
     </ItemGroup>
 
     <CollectDeclaredReferencesTask
+      Condition="'$(EnableReferenceTrimmer)' != 'false'"
       OutputFile="$(_ReferenceTrimmerDeclaredReferencesFile)"
       MSBuildProjectFile="$(MSBuildProjectFile)"
       References="@(_ReferenceTrimmerReferences)"
@@ -44,7 +45,7 @@
       TargetFrameworkDirectories="$(TargetFrameworkDirectory)"
       NuGetPackageRoot="$(NuGetPackageRoot)" />
 
-    <ItemGroup>
+    <ItemGroup Condition="'$(EnableReferenceTrimmer)' != 'false'">
       <!-- https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Using%20Additional%20Files.md#in-a-project-file -->
       <AdditionalFiles Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
       <FileWrites Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
