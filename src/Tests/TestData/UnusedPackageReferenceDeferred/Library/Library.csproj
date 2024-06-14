@@ -4,14 +4,13 @@
     <OutputType>Library</OutputType>
     <TargetFramework>net472</TargetFramework>
     <EnableReferenceTrimmer>false</EnableReferenceTrimmer>
-    <CollectDeclaredReferencesDependsOn>$(CollectDeclaredReferencesDependsOn);SetEnableReferenceTrimmer</CollectDeclaredReferencesDependsOn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
   </ItemGroup>
 
-  <Target Name="SetEnableReferenceTrimmer">
+  <Target Name="SetEnableReferenceTrimmer" BeforeTargets="CollectDeclaredReferences">
     <ItemGroup>
       <DependencyExists Include="true" Condition="'%(PackageReference.Identity)' == 'Newtonsoft.Json'"/>
     </ItemGroup>
