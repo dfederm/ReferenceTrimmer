@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <EnableReferenceTrimmer>false</EnableReferenceTrimmer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+  </ItemGroup>
+
+  <Target Name="SetEnableReferenceTrimmer" BeforeTargets="CollectDeclaredReferences">
+    <ItemGroup>
+      <DependencyExists Include="true" Condition="'%(PackageReference.Identity)' == 'Newtonsoft.Json'"/>
+    </ItemGroup>
+    <PropertyGroup Condition="'@(DependencyExists)' != ''">
+      <EnableReferenceTrimmer>true</EnableReferenceTrimmer>
+    </PropertyGroup>
+  </Target>
+
+</Project>

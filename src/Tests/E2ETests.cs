@@ -283,6 +283,17 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public Task UnusedPackageReferenceDeferred()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                new Warning("RT0003: PackageReference Newtonsoft.Json can be removed", "Library/Library.csproj")
+            });
+    }
+
+    [TestMethod]
     public Task UnusedPackageReferenceNoWarn()
     {
         return RunMSBuildAsync(
