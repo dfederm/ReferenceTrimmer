@@ -1,0 +1,6 @@
+{
+  "msbuild-sdks": {
+    "Microsoft.Build.NoTargets": "3.7.56",
+    "MSTest.Sdk": "3.6.0"
+  }
+}

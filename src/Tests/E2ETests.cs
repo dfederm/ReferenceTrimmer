@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReferenceTrimmer.Loggers.MSVC;
 
 namespace ReferenceTrimmer.Tests;
@@ -34,7 +33,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -42,7 +41,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -50,7 +49,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -94,7 +93,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -102,7 +101,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -136,11 +135,11 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -149,11 +148,11 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -162,7 +161,7 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -178,11 +177,11 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -191,7 +190,7 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -202,12 +201,11 @@ public sealed class E2ETests
                         ? @"RT0001: Reference ..\Dependency\bin\x64\Debug\net472\\Dependency.dll can be removed"
                         : @"RT0001: Reference ../Dependency/bin/x64/Debug/net472/Dependency.dll can be removed",
                     "Library/Library.csproj",
-                    new[]
-                    {
+                    [
                         // Alt: Can leave out 'x64' path segment on VS or Linux.
                         @"RT0001: Reference ..\Dependency\bin\Debug\net472\\Dependency.dll can be removed",
                         @"RT0001: Reference ../Dependency/bin/Debug/net472/Dependency.dll can be removed",
-                    }),
+                    ]),
             });
     }
 
@@ -217,11 +215,11 @@ public sealed class E2ETests
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -252,7 +250,7 @@ public sealed class E2ETests
 
         await RunMSBuildAsync(
             projectFile: "Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -260,7 +258,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -268,7 +266,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "WebHost/WebHost.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -287,7 +285,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -306,7 +304,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -314,7 +312,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -334,7 +332,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Project.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -342,7 +340,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -350,7 +348,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -358,7 +356,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -366,7 +364,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Tests/Tests.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -374,7 +372,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -388,7 +386,7 @@ public sealed class E2ETests
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     [TestMethod]
@@ -402,16 +400,16 @@ public sealed class E2ETests
 
         await RunMSBuildAsync(
             projectFile: "App/App.vcxproj",
-            expectedWarnings: Array.Empty<Warning>(),
-            expectedConsoleOutputs: new[]
-            {
+            expectedWarnings: [],
+            expectedConsoleOutputs:
+            [
                 "Unused libraries:",   // Ensure link.exe unused lib flags are active
                 @"\user32.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
                 "Unused MSVC libraries detected in project",
                 "  * Default Windows SDK import libraries:",
                 "    - Libraries needed: ",
                 "    - Unneeded: ",
-            },
+            ],
             expectUnusedMsvcLibrariesLog: true);
     }
 
@@ -426,14 +424,14 @@ public sealed class E2ETests
 
         await RunMSBuildAsync(
             projectFile: "App/App.vcxproj",
-            expectedWarnings: Array.Empty<Warning>(),
-            expectedConsoleOutputs: new[]
-            {
+            expectedWarnings: [],
+            expectedConsoleOutputs:
+            [
                 "Unused libraries:",   // Ensure link.exe unused lib flags are active
                 "Unused MSVC libraries detected in project",
                 "  * Other libraries - ",
                 @"\Library.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
-            },
+            ],
             expectUnusedMsvcLibrariesLog: true);
     }
 
@@ -448,14 +446,14 @@ public sealed class E2ETests
 
         await RunMSBuildAsync(
             projectFile: "App/App.vcxproj",
-            expectedWarnings: Array.Empty<Warning>(),
-            expectedConsoleOutputs: new[]
-            {
+            expectedWarnings: [],
+            expectedConsoleOutputs:
+            [
                 "Unused libraries:",   // Ensure link.exe unused lib flags are active
                 "Unused MSVC libraries detected in project",
                 "  * Other libraries - ",
                 @"\DLL.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
-            },
+            ],
             expectUnusedMsvcLibrariesLog: true);
     }
 
@@ -464,7 +462,7 @@ public sealed class E2ETests
     {
         return RunMSBuildAsync(
             projectFile: "WpfApp/WpfApp.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: []);
     }
 
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()

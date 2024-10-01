@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project>
 
   <!-- Dogfooding - add the latest ReferenceTrimmer package to this repo's build.
@@ -30,6 +30,12 @@
 
     <!-- Embed symbols in the assembly for easier debugging -->
     <DebugType>embedded</DebugType>
+
+    <!--
+      This all runs in the context of other processes, so we don't have control of the dependencies.
+      Furthermore, we intentionally target lower versions for best compatibility.
+    -->
+    <NuGetAudit>false</NuGetAudit>
   </PropertyGroup>
 
   <!-- Packaging -->
