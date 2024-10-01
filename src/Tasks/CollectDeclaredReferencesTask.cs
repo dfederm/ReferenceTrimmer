@@ -202,8 +202,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         var lockFile = LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
         var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
 
-        var nugetFramework = NuGetFramework.ParseComponents(TargetFrameworkMoniker, TargetPlatformMoniker);
-        LockFileTarget? nugetTarget = lockFile.GetTarget(nugetFramework, RuntimeIdentifier);
+        LockFileTarget? nugetTarget = null;
+        if (!string.IsNullOrEmpty(TargetFrameworkMoniker))
+        {
+            var nugetFramework = NuGetFramework.ParseComponents(TargetFrameworkMoniker!, TargetPlatformMoniker);
+            nugetTarget = lockFile.GetTarget(nugetFramework, RuntimeIdentifier);
+        }
 
         List<LockFileTargetLibrary> nugetLibraries;
         if (nugetTarget?.Libraries is not null)
@@ -222,7 +226,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         var nugetDependents = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (LockFileTargetLibrary nugetLibrary in nugetLibraries)
         {
-            var packageId = nugetLibrary.Name;
+            string? packageId = nugetLibrary.Name;
+            if (packageId is null)
+            {
+                continue;
+            }
+
             foreach (var dependency in nugetLibrary.Dependencies)
             {
                 if (!nugetDependents.TryGetValue(dependency.Id, out var parents))
@@ -238,6 +247,11 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         // Get the transitive closure of assemblies included by each package
         foreach (LockFileTargetLibrary nugetLibrary in nugetLibraries)
         {
+            if (nugetLibrary.Name is null)
+            {
+                continue;
+            }
+
             string nugetLibraryRelativePath = lockFile.GetLibrary(nugetLibrary.Name, nugetLibrary.Version).Path;
             string nugetLibraryAbsolutePath = packageFolders
                 .Select(packageFolder => Path.Combine(packageFolder, nugetLibraryRelativePath))

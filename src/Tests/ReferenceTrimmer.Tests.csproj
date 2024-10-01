@@ -1,16 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="MSTest.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
     <Platforms>AnyCPU;x64</Platforms>
-    <NoWarn>0067;1591</NoWarn>
+    <NoWarn>$(NoWarn);0067;1591;CA1861</NoWarn>
 
     <!-- Don't compile anything from the test data dir -->
     <DefaultItemExcludes>$(DefaultItemExcludes);TestData/**;TestResults/**</DefaultItemExcludes>
   </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="MSTest" Version="3.4.3" />
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Package\ReferenceTrimmer.Package.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

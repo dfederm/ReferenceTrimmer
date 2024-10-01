@@ -229,12 +229,13 @@ public sealed class ForwardingLogger : IForwardingLogger
 
     private void OnMessageRaised(object sender, BuildMessageEventArgs e)
     {
-        if (string.IsNullOrEmpty(e.ProjectFile))
+        string? projectFilePath = e.ProjectFile;
+        string? message = e.Message;
+
+        if (string.IsNullOrEmpty(projectFilePath) || message is null)
         {
             return;
         }
-
-        string projectFilePath = e.ProjectFile;
 
         if (!_projects.TryGetValue(projectFilePath, out ProjectStateLibs? projState))
         {
@@ -246,14 +247,14 @@ public sealed class ForwardingLogger : IForwardingLogger
         switch (projState.ProjectState)
         {
             case State.LinkStarted:
-                if (e.Message.IndexOf("Unused libraries:", StringComparison.OrdinalIgnoreCase) != -1)
+                if (message!.IndexOf("Unused libraries:", StringComparison.OrdinalIgnoreCase) != -1)
                 {
                     projState.ProjectState = State.UnusedLibsStarted;
                 }
                 break;
 
             case State.UnusedLibsStarted:
-                string lib = e.Message.Trim();
+                string lib = message!.Trim();
                 if (lib.Length > 0)
                 {
                     try

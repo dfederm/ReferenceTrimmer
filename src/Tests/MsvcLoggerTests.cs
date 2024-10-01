@@ -1,5 +1,4 @@
 using Microsoft.Build.Framework;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReferenceTrimmer.Loggers.MSVC;
 
 #pragma warning disable CA1707  // Underscores in test names
@@ -184,7 +183,7 @@ public sealed class MsvcLoggerTests
             var unusedLibArgs = eventRedirector.Events[0] as UnusedLibsCustomBuildEventArgs;
             Assert.IsNotNull(unusedLibArgs);
             Assert.AreEqual("a.proj", unusedLibArgs.ProjectPath);
-            Assert.IsTrue(unusedLibArgs.Message.Contains("user32.lib", StringComparison.Ordinal), unusedLibArgs.Message);
+            Assert.IsTrue(unusedLibArgs.Message!.Contains("user32.lib", StringComparison.Ordinal), unusedLibArgs.Message);
             Assert.IsTrue(unusedLibArgs.Message.Contains("bar.lib", StringComparison.Ordinal), unusedLibArgs.Message);
             Assert.IsTrue(unusedLibArgs.UnusedLibraryPathsJson.Length > 0);
         }
