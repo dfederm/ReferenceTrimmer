@@ -254,9 +254,15 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             }
 
             string nugetLibraryRelativePath = lockFile.GetLibrary(nugetLibrary.Name, nugetLibrary.Version).Path;
-            string nugetLibraryAbsolutePath = packageFolders
+            string? nugetLibraryAbsolutePath = packageFolders
                 .Select(packageFolder => Path.Combine(packageFolder, nugetLibraryRelativePath))
-                .First(Directory.Exists);
+                .FirstOrDefault(Directory.Exists);
+            if (nugetLibraryAbsolutePath is null)
+            {
+                // This can happen if the project has a stale lock file.
+                // Just ignore it as NuGet itself will likely error.
+                continue;
+            }
 
             List<string> nugetLibraryAssemblies = nugetLibrary.CompileTimeAssemblies
                 .Select(item => item.Path)
