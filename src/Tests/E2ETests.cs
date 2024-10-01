@@ -97,6 +97,14 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public Task UnusedProjectReferenceTreatAsUsed()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public Task UnusedProjectReferenceSuppressed()
     {
         return RunMSBuildAsync(
@@ -185,6 +193,19 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public async Task UnusedReferenceHintPathTreatAsUsed()
+    {
+        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        await RunMSBuildAsync(
+            projectFile: "Dependency/Dependency.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+
+        await RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+    }
+
+    [TestMethod]
     public async Task UnusedReferenceItemSpec()
     {
         // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
@@ -220,6 +241,19 @@ public sealed class E2ETests
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: []);
+    }
+
+    [TestMethod]
+    public async Task UnusedReferenceItemSpecTreatAsUsed()
+    {
+        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        await RunMSBuildAsync(
+            projectFile: "Dependency/Dependency.csproj",
+            expectedWarnings: Array.Empty<Warning>());
+
+        await RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: Array.Empty<Warning>());
     }
 
     [TestMethod]
@@ -282,6 +316,14 @@ public sealed class E2ETests
 
     [TestMethod]
     public Task UnusedPackageReferenceNoWarn()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: []);
+    }
+
+    [TestMethod]
+    public Task UnusedPackageReferenceTreatAsUsed()
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",

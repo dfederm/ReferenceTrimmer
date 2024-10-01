@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" NoWarn="RT0003"/>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" NoWarn="Foo; rt0003 ; Bar"/>
   </ItemGroup>
 
 </Project>

@@ -24,6 +24,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
     };
 
     private const string NoWarn = "NoWarn";
+    private const string TreatAsUsed = "TreatAsUsed";
 
     [Required]
     public string? OutputFile { get; set; }
@@ -86,7 +87,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     }
 
                     // Ignore suppressions
-                    if (reference.GetMetadata(NoWarn).Contains("RT0001"))
+                    if (IsSuppressed(reference, "RT0001"))
                     {
                         continue;
                     }
@@ -130,7 +131,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 foreach (ITaskItem projectReference in ProjectReferences)
                 {
                     // Ignore suppressions
-                    if (projectReference.GetMetadata(NoWarn).Contains("RT0002"))
+                    if (IsSuppressed(projectReference, "RT0002"))
                     {
                         continue;
                     }
@@ -158,7 +159,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 foreach (ITaskItem packageReference in PackageReferences)
                 {
                     // Ignore suppressions
-                    if (packageReference.GetMetadata(NoWarn).Contains("RT0003"))
+                    if (IsSuppressed(packageReference, "RT0003"))
                     {
                         continue;
                     }
@@ -373,6 +374,39 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         }
 
         return null;
+    }
+
+    private static bool IsSuppressed(ITaskItem item, string warningId)
+    {
+        ReadOnlySpan<char> warningIdSpan = warningId.AsSpan();
+        ReadOnlySpan<char> remainingNoWarn = item.GetMetadata(NoWarn).AsSpan();
+        while (!remainingNoWarn.IsEmpty)
+        {
+            ReadOnlySpan<char> currentNoWarn;
+            int idx = remainingNoWarn.IndexOf(';');
+            if (idx == -1)
+            {
+                currentNoWarn = remainingNoWarn;
+                remainingNoWarn = ReadOnlySpan<char>.Empty;
+            }
+            else
+            {
+                currentNoWarn = remainingNoWarn.Slice(0, idx);
+                remainingNoWarn = remainingNoWarn.Slice(idx + 1);
+            }
+
+            if (currentNoWarn.Trim().Equals(warningIdSpan, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        if (item.GetMetadata(TreatAsUsed).Equals("True", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private sealed class PackageInfoBuilder
