@@ -5,8 +5,4 @@
     <TargetFramework>net472</TargetFramework>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Reference Include="..\Dependency\$(OutputPath)\Dependency.dll" NoWarn="Foo; rt0001 ; Bar"/>
-  </ItemGroup>
-
 </Project>

@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Dependency/Dependency.csproj" NoWarn="RT0002" />
+    <ProjectReference Include="../Dependency/Dependency.csproj" NoWarn="Foo; rt0002 ; Bar" />
   </ItemGroup>
 
 </Project>

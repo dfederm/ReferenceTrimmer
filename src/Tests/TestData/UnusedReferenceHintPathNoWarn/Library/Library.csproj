@@ -8,7 +8,7 @@
   <ItemGroup>
     <Reference Include="Dependency">
       <HintPath>..\Dependency\$(OutputPath)\Dependency.dll</HintPath>
-      <NoWarn>RT0001</NoWarn>
+      <NoWarn>Foo; rt0001 ; Bar</NoWarn>
     </Reference>
   </ItemGroup>
 

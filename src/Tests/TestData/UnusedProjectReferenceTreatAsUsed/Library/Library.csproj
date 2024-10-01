@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="..\Dependency\$(OutputPath)\Dependency.dll" NoWarn="Foo; rt0001 ; Bar"/>
+    <ProjectReference Include="../Dependency/Dependency.csproj" TreatAsUsed="true" />
   </ItemGroup>
 
 </Project>

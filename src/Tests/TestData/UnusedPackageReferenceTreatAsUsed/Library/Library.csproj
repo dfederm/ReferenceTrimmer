@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="..\Dependency\$(OutputPath)\Dependency.dll" NoWarn="Foo; rt0001 ; Bar"/>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" TreatAsUsed="true"/>
   </ItemGroup>
 
 </Project>
