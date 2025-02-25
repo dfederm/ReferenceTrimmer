@@ -507,6 +507,17 @@ public sealed class E2ETests
             expectedWarnings: []);
     }
 
+    [TestMethod]
+    public Task PackageReferenceWithFakeBuildFile()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings:
+            [
+                new Warning("RT0003: PackageReference Microsoft.Extensions.Primitives can be removed", "Library/Library.csproj"),
+            ]);
+    }
+
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
     {
         // On Windows, try to find Visual Studio
