@@ -266,7 +266,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
             List<string> nugetLibraryAssemblies = nugetLibrary.CompileTimeAssemblies
                 .Select(item => item.Path)
-                .Where(path => !path.EndsWith("_._", StringComparison.Ordinal)) // Ignore special packages
+                .Where(IsValidFile)
                 .Select(path =>
                 {
                     var fullPath = Path.Combine(nugetLibraryAbsolutePath, path);
@@ -275,7 +275,9 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 .ToList();
 
             List<string> buildFiles = nugetLibrary.Build
-                .Select(item => Path.Combine(nugetLibraryAbsolutePath, item.Path))
+                .Select(item => item.Path)
+                .Where(IsValidFile)
+                .Select(path => Path.Combine(nugetLibraryAbsolutePath, path))
                 .ToList();
 
             // Add this package's assets, if there are any
@@ -322,6 +324,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
         return packageInfos;
     }
+
+    private static bool IsValidFile(string path) => !path.EndsWith("_._", StringComparison.Ordinal);
 
     private HashSet<string> GetTargetFrameworkAssemblyNames()
     {
