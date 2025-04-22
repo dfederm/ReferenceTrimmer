@@ -1,9 +1,5 @@
 <Project>
 
-  <PropertyGroup>
-    <ReferenceTrimmerTasksAssembly Condition=" '$(ReferenceTrimmerTasksAssembly)' == '' ">$(MSBuildThisFileDirectory)ReferenceTrimmer.Tasks.dll</ReferenceTrimmerTasksAssembly>
-  </PropertyGroup>
-
   <ItemDefinitionGroup Condition=" '$(EnableReferenceTrimmer)' != 'false' and '$(ReferenceTrimmerEnableVcxproj)' != 'false' ">
     <Link>
         <!-- Enable link.exe traceouts of unused libraries and delay-load DLLs from vcxproj projects.
