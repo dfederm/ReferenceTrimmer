@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
-  <UsingTask TaskName="CollectDeclaredReferencesTask" AssemblyFile="$(ReferenceTrimmerTasksAssembly)" />
+  <UsingTask TaskName="CollectDeclaredReferencesTask" AssemblyFile="$(ReferenceTrimmerTasksAssembly)" Condition=" '$(ReferenceTrimmerTasksAssembly)' != '' " />
+  <UsingTask TaskName="CollectDeclaredReferencesTask" AssemblyFile="$(MSBuildThisFileDirectory)ReferenceTrimmer.Tasks.dll" Condition=" '$(ReferenceTrimmerTasksAssembly)' == '' " />
 
   <PropertyGroup>
     <CoreCompileDependsOn Condition="'$(EnableReferenceTrimmer)' != 'false'">$(CoreCompileDependsOn);CollectDeclaredReferences</CoreCompileDependsOn>
