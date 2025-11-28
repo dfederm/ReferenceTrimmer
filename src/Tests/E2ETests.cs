@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using ReferenceTrimmer.Loggers.MSVC;
 
+[assembly: Parallelize(Workers = 1, Scope = ExecutionScope.MethodLevel)]
+
 namespace ReferenceTrimmer.Tests;
 
 [TestClass]
@@ -257,14 +259,9 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [OSCondition(OperatingSystems.Windows, IgnoreMessage = "The GAC is Windows-specific")]
     public async Task UnusedReferenceFromGac()
     {
-        // The GAC is Windows-specific
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Inconclusive();
-        }
-
         await RunMSBuildAsync(
             projectFile: "Library.csproj",
             expectedWarnings: new[]
@@ -274,14 +271,9 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [OSCondition(OperatingSystems.Windows, IgnoreMessage = "The GAC is Windows-specific")]
     public async Task UsedReferenceFromGac()
     {
-        // The GAC is Windows-specific
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Inconclusive();
-        }
-
         await RunMSBuildAsync(
             projectFile: "Library.csproj",
             expectedWarnings: []);
@@ -418,28 +410,18 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [OSCondition(OperatingSystems.Windows, IgnoreMessage = "This test only applies to Windows")]
     public async Task LegacyStyleProject()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            Assert.Inconclusive("This test only applies to Windows");
-            return;
-        }
-
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: []);
     }
 
     [TestMethod]
+    [OSCondition(OperatingSystems.Windows, IgnoreMessage = "This test only applies to Windows")]
     public async Task UnusedWinSdkImportLibrary()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            Assert.Inconclusive("This test only applies to Windows");
-            return;
-        }
-
         await RunMSBuildAsync(
             projectFile: "App/App.vcxproj",
             expectedWarnings: [],
@@ -456,14 +438,9 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [OSCondition(OperatingSystems.Windows, IgnoreMessage = "This test only applies to Windows")]
     public async Task UnusedCppLibrary()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            Assert.Inconclusive("This test only applies to Windows");
-            return;
-        }
-
         await RunMSBuildAsync(
             projectFile: "App/App.vcxproj",
             expectedWarnings: [],
@@ -478,14 +455,9 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [OSCondition(OperatingSystems.Windows, IgnoreMessage = "This test only applies to Windows")]
     public async Task UnusedCppDelayLoadLibrary()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            Assert.Inconclusive("This test only applies to Windows");
-            return;
-        }
-
         await RunMSBuildAsync(
             projectFile: "App/App.vcxproj",
             expectedWarnings: [],
@@ -600,7 +572,7 @@ public sealed class E2ETests
         Assert.AreEqual(File.Exists(unusedLibraryLogPath), expectUnusedMsvcLibrariesLog);
 
         string errors = await File.ReadAllTextAsync(errorsFilePath);
-        Assert.IsTrue(errors.Length == 0, $"Build of {projectFile} was not successful.{Environment.NewLine}Error log: {errors}");
+        Assert.AreEqual(0, errors.Length, $"Build of {projectFile} was not successful.{Environment.NewLine}Error log: {errors}");
 
         List<Warning> actualWarnings = new();
         foreach (string line in await File.ReadAllLinesAsync(warningsFilePath))

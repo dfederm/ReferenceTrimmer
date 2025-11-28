@@ -100,11 +100,11 @@ public sealed class MsvcLoggerTests
         {
             eventSource.AssertExpectedForwardingEventSubscriptions();
             eventSource.SendTaskStarted(new TaskStartedEventArgs(message: "Not Link!", helpKeyword: "NotLink", projectFile: "a.proj", taskFile: "a.proj", taskName: "NotLink"));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "a non-link message", helpKeyword: "NotLink", senderName: "NotLink", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendTaskFinished(new TaskFinishedEventArgs(message: "Not Link!", helpKeyword: "NotLink", projectFile: "a.proj", taskFile: "a.proj", taskName: "NotLink", succeeded: true));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
         }
         finally
         {
@@ -123,11 +123,11 @@ public sealed class MsvcLoggerTests
         {
             eventSource.AssertExpectedForwardingEventSubscriptions();
             eventSource.SendTaskStarted(new TaskStartedEventArgs(message: "Link starting", helpKeyword: "Link", projectFile: "a.proj", taskFile: "a.proj", taskName: "Link"));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "Generic link message", helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendTaskFinished(new TaskFinishedEventArgs(message: "Link finished", helpKeyword: "Link", projectFile: "a.proj", taskFile: "a.proj", taskName: "Link", succeeded: true));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
         }
         finally
         {
@@ -146,11 +146,11 @@ public sealed class MsvcLoggerTests
         {
             eventSource.AssertExpectedForwardingEventSubscriptions();
             eventSource.SendTaskStarted(new TaskStartedEventArgs(message: "Link starting", helpKeyword: "Link", projectFile: "a.proj", taskFile: "a.proj", taskName: "Link"));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "Unused libraries:", helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendTaskFinished(new TaskFinishedEventArgs(message: "Link finished", helpKeyword: "Link", projectFile: "a.proj", taskFile: "a.proj", taskName: "Link", succeeded: true));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
         }
         finally
         {
@@ -169,23 +169,23 @@ public sealed class MsvcLoggerTests
         {
             eventSource.AssertExpectedForwardingEventSubscriptions();
             eventSource.SendTaskStarted(new TaskStartedEventArgs(message: "Link starting", helpKeyword: "Link", projectFile: "a.proj", taskFile: "a.proj", taskName: "Link"));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "Unused libraries:", helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "  user32.lib", helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "  bar.lib", helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: string.Empty, helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendTaskFinished(new TaskFinishedEventArgs(message: "Link finished", helpKeyword: "Link", projectFile: "a.proj", taskFile: "a.proj", taskName: "Link", succeeded: true));
-            Assert.AreEqual(1, eventRedirector.Events.Count);
+            Assert.HasCount(1, eventRedirector.Events);
             var unusedLibArgs = eventRedirector.Events[0] as UnusedLibsCustomBuildEventArgs;
             Assert.IsNotNull(unusedLibArgs);
             Assert.AreEqual("a.proj", unusedLibArgs.ProjectPath);
             Assert.IsTrue(unusedLibArgs.Message!.Contains("user32.lib", StringComparison.Ordinal), unusedLibArgs.Message);
             Assert.IsTrue(unusedLibArgs.Message.Contains("bar.lib", StringComparison.Ordinal), unusedLibArgs.Message);
-            Assert.IsTrue(unusedLibArgs.UnusedLibraryPathsJson.Length > 0);
+            Assert.IsGreaterThan(0, unusedLibArgs.UnusedLibraryPathsJson.Length);
         }
         finally
         {
@@ -204,17 +204,17 @@ public sealed class MsvcLoggerTests
         {
             eventSource.AssertExpectedForwardingEventSubscriptions();
             eventSource.SendTaskStarted(new TaskStartedEventArgs(message: "Link starting", helpKeyword: "Link", projectFile: "a.proj", taskFile: "a.proj", taskName: "Link"));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "Unused libraries:", helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "  kernel32.lib", helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: "  foo.lib", helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendMessageRaised(new BuildMessageEventArgs(message: string.Empty, helpKeyword: "Link", senderName: "Link", MessageImportance.High, DateTime.Now) { ProjectFile = "a.proj" });
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
             eventSource.SendTaskFinished(new TaskFinishedEventArgs(message: "Link finished", helpKeyword: "Link", projectFile: "a.proj", taskFile: "a.proj", taskName: "Link", succeeded: false));
-            Assert.AreEqual(0, eventRedirector.Events.Count);
+            Assert.IsEmpty(eventRedirector.Events);
         }
         finally
         {
