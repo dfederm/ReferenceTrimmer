@@ -1,3 +1,35 @@
+
+<div align="right">
+  <details>
+    <summary >🌐 Language</summary>
+    <div>
+      <div align="center">
+        <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=en">English</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=zh-CN">简体中文</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=zh-TW">繁體中文</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=ja">日本語</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=ko">한국어</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=hi">हिन्दी</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=th">ไทย</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=fr">Français</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=de">Deutsch</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=es">Español</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=it">Italiano</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=ru">Русский</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=pt">Português</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=nl">Nederlands</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=pl">Polski</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=ar">العربية</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=fa">فارسی</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=tr">Türkçe</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=vi">Tiếng Việt</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=id">Bahasa Indonesia</a>
+        | <a href="https://openaitx.github.io/view.html?user=dfederm&project=ReferenceTrimmer&lang=as">অসমীয়া</
+      </div>
+    </div>
+  </details>
+</div>
+
 # ReferenceTrimmer
 [![NuGet Version](https://img.shields.io/nuget/v/ReferenceTrimmer.svg)](https://www.nuget.org/packages/ReferenceTrimmer)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/ReferenceTrimmer.svg)](https://www.nuget.org/packages/ReferenceTrimmer)
