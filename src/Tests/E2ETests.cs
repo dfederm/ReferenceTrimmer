@@ -308,6 +308,17 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public Task UnusedPackageReferenceWithSdk()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Test/Test.csproj",
+            expectedWarnings:
+            [
+                new Warning("RT0003: PackageReference Moq can be removed", "Test/Test.csproj")
+            ]);
+    }
+
+    [TestMethod]
     public Task UnusedPackageReferenceNoWarn()
     {
         return RunMSBuildAsync(
