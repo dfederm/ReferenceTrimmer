@@ -314,7 +314,7 @@ public sealed class E2ETests
             projectFile: "Test/Test.csproj",
             expectedWarnings:
             [
-                new Warning("RT0003: PackageReference Moq can be removed", "Test/Test.csproj")
+                new Warning("RT0003: PackageReference Moq can be removed (though some of its transitive dependent packages may be used)", "Test/Test.csproj")
             ]);
     }
 

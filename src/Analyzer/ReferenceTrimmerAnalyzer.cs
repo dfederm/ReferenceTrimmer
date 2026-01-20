@@ -40,7 +40,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor RT0003Descriptor = new(
         "RT0003",
         "Unnecessary package reference",
-        "PackageReference {0} can be removed",
+        "PackageReference {0} can be removed{1}",
         "ReferenceTrimmer",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -140,6 +140,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<string>> topLevelPackageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
         foreach (DeclaredReference declaredReference in ReadDeclaredReferences(sourceText))
         {
             switch (declaredReference.Kind)
@@ -166,11 +167,23 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 {
                     if (!packageAssembliesDict.TryGetValue(declaredReference.Spec, out List<string> packageAssemblies))
                     {
-                        packageAssemblies = new List<string>();
+                        packageAssemblies = [];
                         packageAssembliesDict.Add(declaredReference.Spec, packageAssemblies);
                     }
 
                     packageAssemblies.Add(declaredReference.AssemblyPath);
+
+                    bool isTopLevelPackageAssembly = string.Equals(declaredReference.Spec, declaredReference.AdditionalSpec, StringComparison.OrdinalIgnoreCase);
+                    if (isTopLevelPackageAssembly)
+                    {
+                        if (!topLevelPackageAssembliesDict.TryGetValue(declaredReference.Spec, out List<string> topLevelPackageAssemblies))
+                        {
+                            topLevelPackageAssemblies = [];
+                            topLevelPackageAssembliesDict.Add(declaredReference.Spec, topLevelPackageAssemblies);
+                        }
+
+                        topLevelPackageAssemblies.Add(declaredReference.AssemblyPath);
+                    }
                     break;
                 }
             }
@@ -183,7 +196,11 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             List<string> packageAssemblies = kvp.Value;
             if (!usedReferences.Overlaps(packageAssemblies))
             {
-                context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, packageName));
+                context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, packageName, string.Empty));
+            }
+            else if (!topLevelPackageAssembliesDict[packageName].Any(usedReferences.Contains))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, packageName, " (though some of its transitive dependent packages may be used)"));
             }
         }
     }
