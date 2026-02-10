@@ -319,6 +319,14 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public Task UnusedPackageReferenceWithMetaPackage()
+    {
+        return RunMSBuildAsync(
+            projectFile: "Test/Test.csproj",
+            expectedWarnings: []);
+    }
+
+    [TestMethod]
     public Task UnusedPackageReferenceNoWarn()
     {
         return RunMSBuildAsync(
