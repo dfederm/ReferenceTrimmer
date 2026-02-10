@@ -1,7 +1,7 @@
 {
   "msbuild-sdks": {
     "Microsoft.Build.NoTargets": "3.7.56",
-    "MSTest.Sdk": "3.11.1"
+    "MSTest.Sdk": "4.1.0"
   },
   "test": {
     "runner": "Microsoft.Testing.Platform"
