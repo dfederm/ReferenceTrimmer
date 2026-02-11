@@ -22,4 +22,42 @@
     </Link>
   </ItemDefinitionGroup>
 
+  <ItemGroup>
+    <!--
+      List of commonly used packages that contain build files that are not consequential, but they're preventing the reference from being trimmed.
+    -->
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Caching.Abstractions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Caching.Memory" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Configuration" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Configuration.Binder" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Configuration.CommandLine" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Configuration.FileExtensions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Configuration.Json" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Configuration.UserSecrets" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.DependencyInjection" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.DependencyModel" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Diagnostics" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Diagnostics.Abstractions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.FileProviders.Abstractions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.FileProviders.Composite" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.FileProviders.Physical" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.FileSystemGlobbing" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Hosting" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Http" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging.Abstractions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging.Configuration" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging.Console" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging.Debug" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging.EventLog" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging.EventSource" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Options" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Primitives" />
+  </ItemGroup>
+
 </Project>
