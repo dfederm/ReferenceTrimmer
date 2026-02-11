@@ -40,7 +40,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     public ITaskItem[]? PackageReferences { get; set; }
 
-    public ITaskItem[]? BuildFilesIgnoreForPackages { get; set; }
+    public ITaskItem[]? ReferenceTrimmerIgnorePackageBuildFiles { get; set; }
 
     public string? ProjectAssetsFile { get; set; }
 
@@ -200,12 +200,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     private bool ShouldIgnoreBuildFilesForPackage(ITaskItem packageReference)
     {
-        if (BuildFilesIgnoreForPackages == null)
+        if (ReferenceTrimmerIgnorePackageBuildFiles == null)
         {
             return false;
         }
 
-        return BuildFilesIgnoreForPackages.Any(item => string.Equals(item.ItemSpec, packageReference.ItemSpec, StringComparison.OrdinalIgnoreCase));
+        return ReferenceTrimmerIgnorePackageBuildFiles.Any(item => string.Equals(item.ItemSpec, packageReference.ItemSpec, StringComparison.OrdinalIgnoreCase));
     }
 
     private Dictionary<string, PackageInfo> GetPackageInfos()

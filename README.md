@@ -54,14 +54,14 @@ You can turn off specific docxml related warnings and errors while defaulting Re
 
 Note: To get better results, enable the [`IDE0005`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005) unnecessary `using` rule. This avoids the C# compiler seeing a false positive assembly usage from unneeded `using` directives causing it to miss a removable dependency. See also the note for why IDE0005 code analysis rule requires `<GenerateDocumentationFile>` property to be enabled. Documentation generation is also required for accuracy of used references detection (based on https://github.com/dotnet/roslyn/issues/66188).
 
-Note: Some packages are prevented from being trimmed as they contain build files, which prevent package reference from being trimmed, as there's no reliable way to determine whether it's safe to do. F.E, `Microsoft.Extensions.Logging.Abstractions` contains analyzer targets, which can definitely be ignored when deciding whether to trim or not. You can explicitly add such packages to `BuildFilesIgnoreForPackages` list (on a project level, or in `Directory.Build.props`).
+Note: Some packages are prevented from being trimmed as they contain build files, which prevent package reference from being trimmed, as there's no reliable way to determine whether it's safe to do. F.E, `Microsoft.Extensions.Logging.Abstractions` contains analyzer targets, which can definitely be ignored when deciding whether to trim or not. You can explicitly add such packages to `ReferenceTrimmerIgnorePackageBuildFiles` list (on a project level, or in `Directory.Build.props`).
 Example
 ```xml
   <ItemGroup>
     <!-- 
       This package contains build files that are not consequentual, but they're preventing the reference from being trimmed.
     -->
-    <BuildFilesIgnoreForPackages Include="Microsoft.Extensions.Logging.Abstractions" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 ```
 Now these packages will be judged solely on whether they're actually being used or not.

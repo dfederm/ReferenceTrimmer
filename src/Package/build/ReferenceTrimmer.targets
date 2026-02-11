@@ -41,7 +41,7 @@
       RuntimeIdentifier="$(RuntimeIdentifier)"
       NuGetRestoreTargets="$(NuGetRestoreTargets)"
       TargetFrameworkDirectories="$(TargetFrameworkDirectory)"
-      BuildFilesIgnoreForPackages="@(BuildFilesIgnoreForPackages)"
+      ReferenceTrimmerIgnorePackageBuildFiles="@(ReferenceTrimmerIgnorePackageBuildFiles)"
       NuGetPackageRoot="$(NuGetPackageRoot)" />
 
     <ItemGroup>

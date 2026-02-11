@@ -15,7 +15,7 @@
     <!-- 
       This package contains build files that are not consequentual, but they're preventing the reference from being trimmed.
     -->
-    <BuildFilesIgnoreForPackages Include="Microsoft.Extensions.Logging" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
 </Project>
