@@ -487,6 +487,7 @@ public sealed class E2ETests
             expectedWarnings:
             [
                 new Warning("RT0003: PackageReference Microsoft.Extensions.Primitives can be removed", "Library/Library.csproj"),
+                new Warning("RT0003: PackageReference Microsoft.Extensions.Logging can be removed", "Library/Library.csproj"),
             ]);
     }
 

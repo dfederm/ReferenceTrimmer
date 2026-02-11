@@ -8,6 +8,14 @@
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="Microsoft.Extensions.Primitives" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 
+      This package contains build files that are not consequentual, but they're preventing the reference from being trimmed.
+    -->
+    <BuildFilesIgnoreForPackages Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
 </Project>

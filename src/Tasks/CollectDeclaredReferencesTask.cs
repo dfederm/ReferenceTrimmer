@@ -40,6 +40,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     public ITaskItem[]? PackageReferences { get; set; }
 
+    public ITaskItem[]? BuildFilesIgnoreForPackages { get; set; }
+
     public string? ProjectAssetsFile { get; set; }
 
     public string? TargetFrameworkMoniker { get; set; }
@@ -171,7 +173,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     }
 
                     // Ignore packages with build logic as we cannot easily evaluate whether the build logic is necessary or not.
-                    if (packageInfo.BuildFiles.Count > 0)
+                    if (packageInfo.BuildFiles.Count > 0 && !ShouldIgnoreBuildFilesForPackage(packageReference))
                     {
                         continue;
                     }
@@ -194,6 +196,16 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         }
 
         return !Log.HasLoggedErrors;
+    }
+
+    private bool ShouldIgnoreBuildFilesForPackage(ITaskItem packageReference)
+    {
+        if (BuildFilesIgnoreForPackages == null)
+        {
+            return false;
+        }
+
+        return BuildFilesIgnoreForPackages.Any(item => string.Equals(item.ItemSpec, packageReference.ItemSpec, StringComparison.OrdinalIgnoreCase));
     }
 
     private Dictionary<string, PackageInfo> GetPackageInfos()
