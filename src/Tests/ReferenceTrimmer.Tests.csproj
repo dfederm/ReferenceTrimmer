@@ -1,8 +1,6 @@
 ﻿<Project Sdk="MSTest.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <PlatformTarget>x64</PlatformTarget>
-    <Platforms>AnyCPU;x64</Platforms>
     <NoWarn>$(NoWarn);0067;1591;CA1861</NoWarn>
 
     <!-- Don't compile anything from the test data dir -->
