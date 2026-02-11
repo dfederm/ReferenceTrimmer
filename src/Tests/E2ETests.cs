@@ -12,7 +12,8 @@ public sealed class E2ETests
 {
     private readonly record struct Warning(string Message, string Project, IEnumerable<string>? AltMessages = null);
 
-    private static readonly (string ExePath, string Verb) MSBuild = GetMsBuildExeAndVerb();
+    private static readonly (string ExePath, string Verb, string? VsInstallDir) MSBuild = GetMsBuildExeAndVerb();
+    internal static readonly Lazy<Dictionary<string, string>?> VsDevEnvironment = new(GetVsDevEnvironment);
 
     private static readonly Regex WarningErrorRegex = new(
         @".+: (warning|error) (?<message>.+) \[(?<project>.+)\]",
@@ -490,22 +491,12 @@ public sealed class E2ETests
             ]);
     }
 
-    private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
+    private static (string ExePath, string Verb, string? VsInstallDir) GetMsBuildExeAndVerb()
     {
-        // On Windows, try to find Visual Studio
+        // On Windows, try to find Visual Studio using vswhere
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            // When running from a developer command prompt, Visual Studio can be found under VSINSTALLDIR
-            string? vsInstallDir = Environment.GetEnvironmentVariable("VSINSTALLDIR");
-            if (string.IsNullOrEmpty(vsInstallDir))
-            {
-                // When running Visual Studio can be found under VSAPPIDDIR
-                string? vsAppIdeDir = Environment.GetEnvironmentVariable("VSAPPIDDIR");
-                if (!string.IsNullOrEmpty(vsAppIdeDir))
-                {
-                    vsInstallDir = Path.Combine(vsAppIdeDir, "..", "..");
-                }
-            }
+            string? vsInstallDir = FindVsInstallDir();
 
             if (!string.IsNullOrEmpty(vsInstallDir))
             {
@@ -515,12 +506,112 @@ public sealed class E2ETests
                     throw new InvalidOperationException($"Could not find MSBuild.exe path for unit tests: {msbuildExePath}");
                 }
 
-                return (msbuildExePath, string.Empty);
+                return (msbuildExePath, string.Empty, vsInstallDir);
             }
         }
 
         // Fall back to just using dotnet. Assume it's on the PATH
-        return ("dotnet", "build");
+        return ("dotnet", "build", null);
+    }
+
+    private static string? FindVsInstallDir()
+    {
+        // When running from a developer command prompt, Visual Studio can be found under VSINSTALLDIR
+        string? vsInstallDir = Environment.GetEnvironmentVariable("VSINSTALLDIR");
+        if (!string.IsNullOrEmpty(vsInstallDir))
+        {
+            return vsInstallDir;
+        }
+
+        // When running Visual Studio can be found under VSAPPIDDIR
+        string? vsAppIdeDir = Environment.GetEnvironmentVariable("VSAPPIDDIR");
+        if (!string.IsNullOrEmpty(vsAppIdeDir))
+        {
+            return Path.GetFullPath(Path.Combine(vsAppIdeDir, "..", ".."));
+        }
+
+        // Use vswhere to find Visual Studio
+        string vswherePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            @"Microsoft Visual Studio\Installer\vswhere.exe");
+        if (!File.Exists(vswherePath))
+        {
+            return null;
+        }
+
+        using Process? process = Process.Start(new ProcessStartInfo
+        {
+            FileName = vswherePath,
+            Arguments = "-latest -property installationPath -requires Microsoft.Component.MSBuild",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+        });
+
+        if (process is null)
+        {
+            return null;
+        }
+
+        string output = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+        return process.ExitCode == 0 && !string.IsNullOrEmpty(output) ? output : null;
+    }
+
+    private static Dictionary<string, string>? GetVsDevEnvironment()
+    {
+        if (MSBuild.VsInstallDir is null)
+        {
+            return null;
+        }
+
+        string vsDevCmdPath = Path.Combine(MSBuild.VsInstallDir, @"Common7\Tools\VsDevCmd.bat");
+        if (!File.Exists(vsDevCmdPath))
+        {
+            return null;
+        }
+
+        // Run VsDevCmd.bat and capture the resulting environment variables
+        using Process? process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = $"/c \"\"{vsDevCmdPath}\" -no_logo && set\"",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+        });
+
+        if (process is null)
+        {
+            return null;
+        }
+
+        string output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+
+        if (process.ExitCode != 0)
+        {
+            return null;
+        }
+
+        var env = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            int eqIndex = line.IndexOf('=');
+            if (eqIndex > 0)
+            {
+                string key = line[..eqIndex];
+                string value = line[(eqIndex + 1)..].TrimEnd('\r');
+
+                // Skip Platform to avoid interfering with dotnet build output paths
+                if (!key.Equals("Platform", StringComparison.OrdinalIgnoreCase))
+                {
+                    env[key] = value;
+                }
+            }
+        }
+
+        return env;
     }
 
     private async Task RunMSBuildAsync(string projectFile, Warning[] expectedWarnings, string[]? expectedConsoleOutputs = null, bool expectUnusedMsvcLibrariesLog = false, bool enableReferenceTrimmerDiagnostics = false)
@@ -560,7 +651,7 @@ public sealed class E2ETests
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-            });
+            }.WithVsDevEnvironment());
         Assert.IsNotNull(process);
 
         string stdOut = await process.StandardOutput.ReadToEndAsync();
@@ -626,5 +717,22 @@ Actual warnings:
         var unusedReferencesFiles = Directory.GetFiles(testDataSourcePath, "_ReferenceTrimmer_UnusedReferences.log", SearchOption.AllDirectories);
         Assert.AreEqual(enableReferenceTrimmerDiagnostics, usedReferencesFiles.Length > 0);
         Assert.AreEqual(enableReferenceTrimmerDiagnostics, unusedReferencesFiles.Length > 0);
+    }
+}
+
+file static class ProcessStartInfoExtensions
+{
+    public static ProcessStartInfo WithVsDevEnvironment(this ProcessStartInfo psi)
+    {
+        Dictionary<string, string>? vsEnv = E2ETests.VsDevEnvironment.Value;
+        if (vsEnv is not null)
+        {
+            foreach (KeyValuePair<string, string> kvp in vsEnv)
+            {
+                psi.Environment[kvp.Key] = kvp.Value;
+            }
+        }
+
+        return psi;
     }
 }
