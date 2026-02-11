@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0 # Git Versioning requires a non-shallow clone
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v5
 
       - name: Restore
         run: dotnet restore -bl:logs/restore.binlog
