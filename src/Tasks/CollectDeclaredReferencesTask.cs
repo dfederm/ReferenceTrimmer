@@ -40,7 +40,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     public ITaskItem[]? PackageReferences { get; set; }
 
-    public ITaskItem[]? ReferenceTrimmerIgnorePackageBuildFiles { get; set; }
+    public ITaskItem[]? IgnorePackageBuildFiles { get; set; }
 
     public string? ProjectAssetsFile { get; set; }
 
@@ -172,8 +172,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         continue;
                     }
 
-                    // Ignore packages with build logic as we cannot easily evaluate whether the build logic is necessary or not.
-                    if (packageInfo.BuildFiles.Count > 0 && !ShouldIgnoreBuildFilesForPackage(packageReference))
+                    if (packageInfo.BuildFiles.Count > 0)
                     {
                         continue;
                     }
@@ -196,16 +195,6 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         }
 
         return !Log.HasLoggedErrors;
-    }
-
-    private bool ShouldIgnoreBuildFilesForPackage(ITaskItem packageReference)
-    {
-        if (ReferenceTrimmerIgnorePackageBuildFiles == null)
-        {
-            return false;
-        }
-
-        return ReferenceTrimmerIgnorePackageBuildFiles.Any(item => string.Equals(item.ItemSpec, packageReference.ItemSpec, StringComparison.OrdinalIgnoreCase));
     }
 
     private Dictionary<string, PackageInfo> GetPackageInfos()
@@ -257,6 +246,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             }
         }
 
+        HashSet<string> packageToIgnoreBuildFiles = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ITaskItem item in IgnorePackageBuildFiles ?? [])
+        {
+            packageToIgnoreBuildFiles.Add(item.ItemSpec);
+        }
+
         // Get the transitive closure of assemblies included by each package
         foreach (LockFileTargetLibrary nugetLibrary in nugetLibraries)
         {
@@ -286,11 +281,13 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 })
                 .ToList();
 
-            List<string> buildFiles = nugetLibrary.Build
-                .Select(item => item.Path)
-                .Where(IsValidFile)
-                .Select(path => Path.Combine(nugetLibraryAbsolutePath, path))
-                .ToList();
+            List<string> buildFiles = packageToIgnoreBuildFiles.Contains(nugetLibrary.Name)
+                ? []
+                : nugetLibrary.Build
+                    .Select(item => item.Path)
+                    .Where(IsValidFile)
+                    .Select(path => Path.Combine(nugetLibraryAbsolutePath, path))
+                    .ToList();
 
             // Add this package's assets, if there are any
             if (nugetLibraryAssemblies.Count > 0 || buildFiles.Count > 0)

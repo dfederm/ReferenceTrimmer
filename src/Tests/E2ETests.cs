@@ -487,8 +487,30 @@ public sealed class E2ETests
             expectedWarnings:
             [
                 new Warning("RT0003: PackageReference Microsoft.Extensions.Primitives can be removed", "Library/Library.csproj"),
-                new Warning("RT0003: PackageReference Microsoft.Extensions.Logging can be removed", "Library/Library.csproj"),
             ]);
+    }
+
+    [TestMethod]
+    public async Task IgnorePackageBuildFiles()
+    {
+        await RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            globalProperties: new Dictionary<string, string>
+            {
+                { "IgnorePackageBuildFiles", "false" },
+            });
+
+        await RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings:
+            [
+                new Warning("RT0003: PackageReference Microsoft.Extensions.Logging can be removed", "Library/Library.csproj"),
+            ],
+            globalProperties: new Dictionary<string, string>
+            {
+                { "IgnorePackageBuildFiles", "true" },
+            });
     }
 
     private static (string ExePath, string Verb) GetMsBuildExeAndVerb()
@@ -524,7 +546,13 @@ public sealed class E2ETests
         return ("dotnet", "build");
     }
 
-    private async Task RunMSBuildAsync(string projectFile, Warning[] expectedWarnings, string[]? expectedConsoleOutputs = null, bool expectUnusedMsvcLibrariesLog = false, bool enableReferenceTrimmerDiagnostics = false)
+    private async Task RunMSBuildAsync(
+        string projectFile,
+        Warning[] expectedWarnings,
+        string[]? expectedConsoleOutputs = null,
+        bool expectUnusedMsvcLibrariesLog = false,
+        bool enableReferenceTrimmerDiagnostics = false,
+        IReadOnlyDictionary<string, string>? globalProperties = null)
     {
         var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext?.TestName ?? string.Empty));
 
@@ -550,6 +578,14 @@ public sealed class E2ETests
                              $"-flp2:logfile=\"{warningsFilePath}\";warningsonly " +
                              $"-distributedlogger:CentralLogger,\"{loggersAssemblyPath}\"*ForwardingLogger,\"{loggersAssemblyPath}\" " +
                              (enableReferenceTrimmerDiagnostics ? "-p:EnableReferenceTrimmerDiagnostics=true" : string.Empty);
+
+        if (globalProperties is not null)
+        {
+            foreach ((string key, string value) in globalProperties)
+            {
+                msbuildArgs += $" -p:{key}={value}";
+            }
+        }
 
         Process? process = Process.Start(
             new ProcessStartInfo
