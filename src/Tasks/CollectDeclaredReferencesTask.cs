@@ -154,6 +154,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     bool isTransitiveDependency = !string.IsNullOrEmpty(projectReference.GetMetadata("NuGetPackageId"));
                     if (isTransitiveDependency)
                     {
+                        // Ignore transitive project references since the project doesn't have direct control over them.
                         continue;
                     }
 
