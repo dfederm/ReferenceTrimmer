@@ -71,6 +71,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     // Ignore implicitly defined references (references which are SDK-provided)
                     if (reference.GetMetadata("IsImplicitlyDefined").Equals("true", StringComparison.OrdinalIgnoreCase))
                     {
+                        Log.LogMessage(MessageImportance.Low, "Skipping Reference '{0}' because it is implicitly defined (SDK-provided)", reference.ItemSpec);
                         continue;
                     }
 
@@ -79,18 +80,21 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     // so the resulting reference would be unavoidable.
                     if (targetFrameworkAssemblies.Contains(reference.ItemSpec))
                     {
+                        Log.LogMessage(MessageImportance.Low, "Skipping Reference '{0}' because it is a target framework assembly", reference.ItemSpec);
                         continue;
                     }
 
                     // Ignore references from packages. Those as handled later.
                     if (reference.GetMetadata("NuGetPackageId").Length != 0)
                     {
+                        // Logs will be emitted for these references when processing the PackageReferences
                         continue;
                     }
 
                     // Ignore suppressions
                     if (IsSuppressed(reference, "RT0001"))
                     {
+                        Log.LogMessage(MessageImportance.Low, "Skipping Reference '{0}' because it is suppressed via NoWarn=\"RT0001\" or <TreatAsUsed>", reference.ItemSpec);
                         continue;
                     }
 
@@ -117,6 +121,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     {
                         if (referencePath.StartsWith(NuGetPackageRoot, StringComparison.OrdinalIgnoreCase))
                         {
+                            Log.LogMessage(MessageImportance.Low, "Skipping Reference '{0}' because its resolved path '{1}' is under the NuGet package root (likely added by a package's props/targets)", referenceSpec, referencePath);
                             continue;
                         }
                     }
@@ -127,6 +132,10 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     }
                 }
             }
+            else
+            {
+                Log.LogMessage(MessageImportance.Low, "No References to process");
+            }
 
             if (ProjectReferences != null)
             {
@@ -135,6 +144,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     // Ignore suppressions
                     if (IsSuppressed(projectReference, "RT0002"))
                     {
+                        Log.LogMessage(MessageImportance.Low, "Skipping ProjectReference '{0}' because it is suppressed via NoWarn=\"RT0002\" or <TreatAsUsed>", projectReference.ItemSpec);
                         continue;
                     }
 
@@ -154,6 +164,10 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
                 }
             }
+            else
+            {
+                Log.LogMessage(MessageImportance.Low, "No ProjectReferences to process");
+            }
 
             if (PackageReferences != null)
             {
@@ -163,17 +177,24 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     // Ignore suppressions
                     if (IsSuppressed(packageReference, "RT0003"))
                     {
+                        Log.LogMessage(MessageImportance.Low, "Skipping PackageReference '{0}' because it is suppressed via NoWarn=\"RT0003\" or <TreatAsUsed>", packageReference.ItemSpec);
                         continue;
                     }
 
                     if (!packageInfos.TryGetValue(packageReference.ItemSpec, out PackageInfo packageInfo))
                     {
                         // These are likely Analyzers, tools, etc.
+                        Log.LogMessage(MessageImportance.Low, "Skipping PackageReference '{0}' because it has no compile-time assemblies (likely an Analyzer, tool, or content-only package)", packageReference.ItemSpec);
                         continue;
                     }
 
                     if (packageInfo.BuildFiles.Count > 0)
                     {
+                        Log.LogMessage(MessageImportance.Low, "Skipping PackageReference '{0}' because it has build {1} file(s):", packageReference.ItemSpec, packageInfo.BuildFiles.Count);
+                        foreach (string buildFile in packageInfo.BuildFiles)
+                        {
+                            Log.LogMessage(MessageImportance.Low, "  Build file: '{0}'", buildFile);
+                        }
                         continue;
                     }
 
@@ -183,10 +204,15 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     }
                 }
             }
+            else
+            {
+                Log.LogMessage(MessageImportance.Low, "No PackageReferences to process");
+            }
 
             if (OutputFile is not null)
             {
                 new DeclaredReferences(declaredReferences).SaveToFile(OutputFile);
+                Log.LogMessage(MessageImportance.Low, "Saved {0} declared references to '{1}'", declaredReferences.Count, OutputFile);
             }
         }
         finally
@@ -201,14 +227,17 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
     {
         var packageInfoBuilders = new Dictionary<string, PackageInfoBuilder>(StringComparer.OrdinalIgnoreCase);
 
+        Log.LogMessage(MessageImportance.Low, "Loading lock file from '{0}'", ProjectAssetsFile);
         var lockFile = LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
         var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
+        Log.LogMessage(MessageImportance.Low, "Package folders: {0}", string.Join("; ", packageFolders));
 
         LockFileTarget? nugetTarget = null;
         if (!string.IsNullOrEmpty(TargetFrameworkMoniker))
         {
             var nugetFramework = NuGetFramework.ParseComponents(TargetFrameworkMoniker!, TargetPlatformMoniker);
             nugetTarget = lockFile.GetTarget(nugetFramework, RuntimeIdentifier);
+            Log.LogMessage(MessageImportance.Low, "Resolved NuGet target framework: '{0}'", nugetFramework);
         }
 
         List<LockFileTargetLibrary> nugetLibraries;
@@ -217,10 +246,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             nugetLibraries = nugetTarget.Libraries
                 .Where(nugetLibrary => string.Equals(nugetLibrary.Type, "Package", StringComparison.OrdinalIgnoreCase))
                 .ToList();
+            Log.LogMessage(MessageImportance.Low, "Found {0} NuGet package library(ies) in lock file target", nugetLibraries.Count);
         }
         else
         {
             nugetLibraries = new List<LockFileTargetLibrary>();
+            Log.LogMessage(MessageImportance.Low, "No NuGet target libraries found in lock file");
         }
 
         // Compute the hierarchy of packages.
@@ -268,6 +299,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             {
                 // This can happen if the project has a stale lock file.
                 // Just ignore it as NuGet itself will likely error.
+                Log.LogMessage(MessageImportance.Low, "Package '{0}' could not be found in any package folder (stale lock file?). Skipping.", nugetLibrary.Name);
                 continue;
             }
 
@@ -288,6 +320,14 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     .Where(IsValidFile)
                     .Select(path => Path.Combine(nugetLibraryAbsolutePath, path))
                     .ToList();
+
+            if (packageToIgnoreBuildFiles.Contains(nugetLibrary.Name) && nugetLibrary.Build.Count > 0)
+            {
+                Log.LogMessage(MessageImportance.Low, "Package '{0}' has {1} build file(s) but they are ignored via IgnorePackageBuildFiles", nugetLibrary.Name, nugetLibrary.Build.Count);
+            }
+
+            Log.LogMessage(MessageImportance.Low, "Package '{0}' v{1}: {2} compile-time assembly(ies), {3} build file(s)",
+                nugetLibrary.Name, nugetLibrary.Version, nugetLibraryAssemblies.Count, buildFiles.Count);
 
             // Add this package's assets, if there are any
             if (nugetLibraryAssemblies.Count > 0 || buildFiles.Count > 0)
@@ -344,11 +384,13 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         // See: https://github.com/dotnet/sdk/blob/main/src/Tasks/Common/ConflictResolution/FrameworkListReader.cs
         if (TargetFrameworkDirectories != null)
         {
+            Log.LogMessage(MessageImportance.Low, "Scanning {0} TargetFrameworkDirectory(ies) for framework assemblies", TargetFrameworkDirectories.Length);
             foreach (ITaskItem targetFrameworkDirectory in TargetFrameworkDirectories)
             {
                 string frameworkListPath = Path.Combine(targetFrameworkDirectory.ItemSpec, "RedistList", "FrameworkList.xml");
                 if (!File.Exists(frameworkListPath))
                 {
+                    Log.LogMessage(MessageImportance.Low, "FrameworkList.xml not found at '{0}'", frameworkListPath);
                     continue;
                 }
 
@@ -388,7 +430,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             string nugetProjectModelFile = Path.Combine(Path.GetDirectoryName(NuGetRestoreTargets)!, assemblyName.Name + ".dll");
             if (File.Exists(nugetProjectModelFile))
             {
+                Log.LogMessage(MessageImportance.Low, "Resolved assembly '{0}' from '{1}'", assemblyName.Name, nugetProjectModelFile);
                 return Assembly.LoadFrom(nugetProjectModelFile);
+            }
+            else
+            {
+                Log.LogMessage(MessageImportance.Low, "Could not resolve assembly '{0}' - file not found at '{1}'", assemblyName.Name, nugetProjectModelFile);
             }
         }
 
