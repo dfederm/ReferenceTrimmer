@@ -58,6 +58,7 @@
     <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Options" />
     <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <ReferenceTrimmerIgnorePackageBuildFiles Include="Microsoft.Extensions.Primitives" />
+    <ReferenceTrimmerIgnorePackageBuildFiles Include="System.Text.Json" />
   </ItemGroup>
 
 </Project>
