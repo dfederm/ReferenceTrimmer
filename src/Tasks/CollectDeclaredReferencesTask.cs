@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
@@ -211,7 +212,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
             if (OutputFile is not null)
             {
-                new DeclaredReferences(declaredReferences).SaveToFile(OutputFile);
+                SaveDeclaredReferences(declaredReferences, OutputFile);
                 Log.LogMessage(MessageImportance.Low, "Saved {0} declared references to '{1}'", declaredReferences.Count, OutputFile);
             }
         }
@@ -473,6 +474,43 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         }
 
         return false;
+    }
+
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // Keep in sync with ReadDeclaredReferences in ReferenceTrimmerAnalyzer.cs.
+    private static void SaveDeclaredReferences(IReadOnlyList<DeclaredReference> declaredReferences, string filePath)
+    {
+        const char fieldDelimiter = '\t';
+
+        StringBuilder writer = new();
+        foreach (DeclaredReference reference in declaredReferences)
+        {
+            writer.Append(reference.AssemblyPath);
+            writer.Append(fieldDelimiter);
+            string kindString = reference.Kind switch
+            {
+                DeclaredReferenceKind.Reference => nameof(DeclaredReferenceKind.Reference),
+                DeclaredReferenceKind.ProjectReference => nameof(DeclaredReferenceKind.ProjectReference),
+                DeclaredReferenceKind.PackageReference => nameof(DeclaredReferenceKind.PackageReference),
+                _ => throw new InvalidDataException($"Unknown reference kind '{reference.Kind}'."),
+            };
+            writer.Append(kindString);
+            writer.Append(fieldDelimiter);
+            writer.Append(reference.Spec);
+            writer.AppendLine();
+        }
+
+        string newContent = writer.ToString();
+        if (File.Exists(filePath))
+        {
+            string existing = File.ReadAllText(filePath);
+            if (string.Equals(existing, newContent, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        File.WriteAllText(filePath, newContent);
     }
 
     private sealed class PackageInfoBuilder

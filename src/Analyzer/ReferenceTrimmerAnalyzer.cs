@@ -1,6 +1,7 @@
 ﻿using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Text;
 using ReferenceTrimmer.Shared;
 
 namespace ReferenceTrimmer.Analyzer;
@@ -44,6 +45,14 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor RT9999Descriptor = new(
+        "RT9999",
+        "ReferenceTrimmer internal error",
+        "ReferenceTrimmer encountered an unexpected error: {0}. Please file a bug at https://github.com/dfederm/ReferenceTrimmer/issues",
+        "ReferenceTrimmer",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     /// <summary>
     /// The supported diagnostics.
     /// </summary>
@@ -52,7 +61,8 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             RT0000Descriptor,
             RT0001Descriptor,
             RT0002Descriptor,
-            RT0003Descriptor);
+            RT0003Descriptor,
+            RT9999Descriptor);
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -64,14 +74,35 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
     private static void DumpUsedReferences(CompilationAnalysisContext context)
     {
-        string? declaredReferencesPath = GetDeclaredReferencesPath(context);
-        if (declaredReferencesPath == null)
+        try
+        {
+            DumpUsedReferencesCore(context);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(RT9999Descriptor, Location.None, ex.Message));
+        }
+    }
+
+    private static void DumpUsedReferencesCore(CompilationAnalysisContext context)
+    {
+        AdditionalText? declaredReferencesFile = GetDeclaredReferencesFile(context);
+        if (declaredReferencesFile == null)
         {
             // Reference Trimmer is disabled
             return;
         }
 
-        DeclaredReferences declaredReferences = DeclaredReferences.ReadFromFile(declaredReferencesPath);
+        SourceText? sourceText = declaredReferencesFile.GetText(context.CancellationToken);
+        if (sourceText == null)
+        {
+            return;
+        }
+
         Compilation compilation = context.Compilation;
         if (compilation.SyntaxTrees.FirstOrDefault()?.Options.DocumentationMode == DocumentationMode.None)
         {
@@ -105,11 +136,11 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 }
             }
 
-            DumpReferencesInfo(usedReferences, unusedReferences, declaredReferencesPath);
+            DumpReferencesInfo(usedReferences, unusedReferences, declaredReferencesFile.Path);
         }
 
         Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
-        foreach (DeclaredReference declaredReference in declaredReferences.References)
+        foreach (DeclaredReference declaredReference in ReadDeclaredReferences(sourceText))
         {
             switch (declaredReference.Kind)
             {
@@ -150,7 +181,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         {
             string packageName = kvp.Key;
             List<string> packageAssemblies = kvp.Value;
-            if (!packageAssemblies.Any(usedReferences.Contains))
+            if (!usedReferences.Overlaps(packageAssemblies))
             {
                 context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, packageName));
             }
@@ -188,16 +219,83 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static string? GetDeclaredReferencesPath(CompilationAnalysisContext context)
+    private static AdditionalText? GetDeclaredReferencesFile(CompilationAnalysisContext context)
     {
         foreach (AdditionalText additionalText in context.Options.AdditionalFiles)
         {
             if (Path.GetFileName(additionalText.Path).Equals(DeclaredReferencesFileName, StringComparison.Ordinal))
             {
-                return additionalText.Path;
+                return additionalText;
             }
         }
 
         return null;
+    }
+
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // Keep in sync with SaveDeclaredReferences in CollectDeclaredReferencesTask.cs.
+    private static IEnumerable<DeclaredReference> ReadDeclaredReferences(SourceText sourceText)
+    {
+        foreach (TextLine textLine in sourceText.Lines)
+        {
+            TextSpan lineSpan = textLine.Span;
+            if (lineSpan.Length == 0)
+            {
+                continue;
+            }
+
+            // Find tab delimiters within the line span to avoid full-line ToString + Split.
+            int start = lineSpan.Start;
+            int end = lineSpan.End;
+
+            int firstTab = -1;
+            int secondTab = -1;
+            for (int i = start; i < end; i++)
+            {
+                if (sourceText[i] == '\t')
+                {
+                    if (firstTab == -1)
+                    {
+                        firstTab = i;
+                    }
+                    else
+                    {
+                        secondTab = i;
+                        break;
+                    }
+                }
+            }
+
+            if (firstTab == -1 || secondTab == -1)
+            {
+                yield break;
+            }
+
+            string assemblyPath = sourceText.ToString(TextSpan.FromBounds(start, firstTab));
+            string spec = sourceText.ToString(TextSpan.FromBounds(secondTab + 1, end));
+
+            // Determine kind without allocating a string. The three possible values are
+            // "Reference" (len 9), "ProjectReference" (len 16), "PackageReference" (len 16).
+            int kindLength = secondTab - firstTab - 1;
+            DeclaredReferenceKind kind;
+            if (kindLength == 9)
+            {
+                kind = DeclaredReferenceKind.Reference;
+            }
+            else if (kindLength == 16 && sourceText[firstTab + 1] == 'P' && sourceText[firstTab + 2] == 'r')
+            {
+                kind = DeclaredReferenceKind.ProjectReference;
+            }
+            else if (kindLength == 16 && sourceText[firstTab + 1] == 'P' && sourceText[firstTab + 2] == 'a')
+            {
+                kind = DeclaredReferenceKind.PackageReference;
+            }
+            else
+            {
+                continue;
+            }
+
+            yield return new DeclaredReference(assemblyPath, kind, spec);
+        }
     }
 }
