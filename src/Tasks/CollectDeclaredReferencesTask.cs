@@ -61,16 +61,22 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         AppDomain.CurrentDomain.AssemblyResolve += ResolveAssembly;
         try
         {
+            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Starting CollectDeclaredReferencesTask for project '{0}'", MSBuildProjectFile);
+            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: OutputFile='{0}', TargetFrameworkMoniker='{1}', TargetPlatformMoniker='{2}', RuntimeIdentifier='{3}'",
+                OutputFile, TargetFrameworkMoniker, TargetPlatformMoniker, RuntimeIdentifier);
+
             List<DeclaredReference> declaredReferences = new();
 
             if (References != null)
             {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Processing {0} Reference(s)", References.Length);
                 HashSet<string> targetFrameworkAssemblies = GetTargetFrameworkAssemblyNames();
                 foreach (ITaskItem reference in References)
                 {
                     // Ignore implicitly defined references (references which are SDK-provided)
                     if (reference.GetMetadata("IsImplicitlyDefined").Equals("true", StringComparison.OrdinalIgnoreCase))
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping Reference '{0}' because it is implicitly defined (SDK-provided)", reference.ItemSpec);
                         continue;
                     }
 
@@ -79,18 +85,21 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     // so the resulting reference would be unavoidable.
                     if (targetFrameworkAssemblies.Contains(reference.ItemSpec))
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping Reference '{0}' because it is a target framework assembly (resolved via package file conflicts)", reference.ItemSpec);
                         continue;
                     }
 
                     // Ignore references from packages. Those as handled later.
                     if (reference.GetMetadata("NuGetPackageId").Length != 0)
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping Reference '{0}' because it comes from NuGet package '{1}' (handled via PackageReferences)", reference.ItemSpec, reference.GetMetadata("NuGetPackageId"));
                         continue;
                     }
 
                     // Ignore suppressions
                     if (IsSuppressed(reference, "RT0001"))
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping Reference '{0}' because RT0001 is suppressed (via NoWarn or TreatAsUsed)", reference.ItemSpec);
                         continue;
                     }
 
@@ -101,15 +110,25 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
                     {
                         referencePath = Path.GetFullPath(referenceHintPath);
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Reference '{0}' resolved via HintPath to '{1}'", referenceSpec, referencePath);
                     }
                     else if (File.Exists(referenceSpec))
                     {
                         referencePath = Path.GetFullPath(referenceSpec);
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Reference '{0}' resolved via ItemSpec path to '{1}'", referenceSpec, referencePath);
                     }
                     else
                     {
                         var resolvedReference = ResolvedReferences.SingleOrDefault(rr => string.Equals(rr.GetMetadata("OriginalItemSpec"), referenceSpec, StringComparison.OrdinalIgnoreCase));
                         referencePath = resolvedReference is null ? null : resolvedReference.ItemSpec;
+                        if (referencePath is not null)
+                        {
+                            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Reference '{0}' resolved via ResolvedReferences to '{1}'", referenceSpec, referencePath);
+                        }
+                        else
+                        {
+                            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Reference '{0}' could not be resolved to a file path", referenceSpec);
+                        }
                     }
 
                     // If the reference is under the nuget package root, it's likely a Reference added in a package's props or targets.
@@ -117,24 +136,32 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     {
                         if (referencePath.StartsWith(NuGetPackageRoot, StringComparison.OrdinalIgnoreCase))
                         {
+                            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping Reference '{0}' because its resolved path '{1}' is under the NuGet package root (likely added by a package's props/targets)", referenceSpec, referencePath);
                             continue;
                         }
                     }
 
                     if (referencePath is not null)
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Including Reference '{0}' with resolved path '{1}'", referenceSpec, referencePath);
                         declaredReferences.Add(new DeclaredReference(referencePath, DeclaredReferenceKind.Reference, referenceSpec));
                     }
                 }
             }
+            else
+            {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: No References to process");
+            }
 
             if (ProjectReferences != null)
             {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Processing {0} ProjectReference(s)", ProjectReferences.Length);
                 foreach (ITaskItem projectReference in ProjectReferences)
                 {
                     // Ignore suppressions
                     if (IsSuppressed(projectReference, "RT0002"))
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping ProjectReference '{0}' because RT0002 is suppressed (via NoWarn or TreatAsUsed)", projectReference.ItemSpec);
                         continue;
                     }
 
@@ -145,48 +172,67 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     if (isTransitiveDependency)
                     {
                         // Ignore transitive project references since the project doesn't have direct control over them.
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping ProjectReference '{0}' because it is a transitive dependency (NuGetPackageId='{1}')", projectReference.ItemSpec, projectReference.GetMetadata("NuGetPackageId"));
                         continue;
                     }
 
                     string projectReferenceAssemblyPath = Path.GetFullPath(projectReference.ItemSpec);
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
+                    Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Including ProjectReference '{0}' (project file: '{1}', assembly path: '{2}')", projectReference.ItemSpec, referenceProjectFile, projectReferenceAssemblyPath);
                     declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
                 }
+            }
+            else
+            {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: No ProjectReferences to process");
             }
 
             if (PackageReferences != null)
             {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Processing {0} PackageReference(s)", PackageReferences.Length);
                 Dictionary<string, PackageInfo> packageInfos = GetPackageInfos();
                 foreach (ITaskItem packageReference in PackageReferences)
                 {
                     // Ignore suppressions
                     if (IsSuppressed(packageReference, "RT0003"))
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping PackageReference '{0}' because RT0003 is suppressed (via NoWarn or TreatAsUsed)", packageReference.ItemSpec);
                         continue;
                     }
 
                     if (!packageInfos.TryGetValue(packageReference.ItemSpec, out PackageInfo packageInfo))
                     {
                         // These are likely Analyzers, tools, etc.
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping PackageReference '{0}' because it has no compile-time assemblies or build files (likely an Analyzer, tool, or content-only package)", packageReference.ItemSpec);
                         continue;
                     }
 
                     if (packageInfo.BuildFiles.Count > 0)
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Skipping PackageReference '{0}' because it has build file(s) (packages with build logic are considered used): {1} {2}", Environment.NewLine, packageReference.ItemSpec, string.Join(Environment.NewLine, packageInfo.BuildFiles));
                         continue;
                     }
 
+                    Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Including PackageReference '{0}' with {1} compile-time assembly(ies)", packageReference.ItemSpec, packageInfo.CompileTimeAssemblies.Count);
                     foreach (string assemblyPath in packageInfo.CompileTimeAssemblies)
                     {
+                        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer:   Assembly: '{0}'", assemblyPath);
                         declaredReferences.Add(new DeclaredReference(assemblyPath, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec));
                     }
                 }
             }
+            else
+            {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: No PackageReferences to process");
+            }
+
+            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Collected {0} total declared reference(s)", declaredReferences.Count);
 
             if (OutputFile is not null)
             {
                 new DeclaredReferences(declaredReferences).SaveToFile(OutputFile);
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Saved declared references to '{0}'", OutputFile);
             }
         }
         finally
@@ -201,14 +247,17 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
     {
         var packageInfoBuilders = new Dictionary<string, PackageInfoBuilder>(StringComparer.OrdinalIgnoreCase);
 
+        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Loading lock file from '{0}'", ProjectAssetsFile);
         var lockFile = LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
         var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
+        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Package folders: {0}", string.Join("; ", packageFolders));
 
         LockFileTarget? nugetTarget = null;
         if (!string.IsNullOrEmpty(TargetFrameworkMoniker))
         {
             var nugetFramework = NuGetFramework.ParseComponents(TargetFrameworkMoniker!, TargetPlatformMoniker);
             nugetTarget = lockFile.GetTarget(nugetFramework, RuntimeIdentifier);
+            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Resolved NuGet target framework: '{0}'", nugetFramework);
         }
 
         List<LockFileTargetLibrary> nugetLibraries;
@@ -217,10 +266,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             nugetLibraries = nugetTarget.Libraries
                 .Where(nugetLibrary => string.Equals(nugetLibrary.Type, "Package", StringComparison.OrdinalIgnoreCase))
                 .ToList();
+            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Found {0} NuGet package library(ies) in lock file target", nugetLibraries.Count);
         }
         else
         {
             nugetLibraries = new List<LockFileTargetLibrary>();
+            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: No NuGet target libraries found in lock file");
         }
 
         // Compute the hierarchy of packages.
@@ -268,6 +319,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             {
                 // This can happen if the project has a stale lock file.
                 // Just ignore it as NuGet itself will likely error.
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Package '{0}' could not be found in any package folder (stale lock file?). Skipping.", nugetLibrary.Name);
                 continue;
             }
 
@@ -288,6 +340,14 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     .Where(IsValidFile)
                     .Select(path => Path.Combine(nugetLibraryAbsolutePath, path))
                     .ToList();
+
+            if (packageToIgnoreBuildFiles.Contains(nugetLibrary.Name) && nugetLibrary.Build.Count > 0)
+            {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Package '{0}' has {1} build file(s) but they are ignored via IgnorePackageBuildFiles", nugetLibrary.Name, nugetLibrary.Build.Count);
+            }
+
+            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Package '{0}' v{1}: {2} compile-time assembly(ies), {3} build file(s)",
+                nugetLibrary.Name, nugetLibrary.Version, nugetLibraryAssemblies.Count, buildFiles.Count);
 
             // Add this package's assets, if there are any
             if (nugetLibraryAssemblies.Count > 0 || buildFiles.Count > 0)
@@ -331,6 +391,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             packageInfos.Add(packageInfoBuilder.Key, packageInfoBuilder.Value.ToPackageInfo());
         }
 
+        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Built package info for {0} package(s)", packageInfos.Count);
         return packageInfos;
     }
 
@@ -344,11 +405,13 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         // See: https://github.com/dotnet/sdk/blob/main/src/Tasks/Common/ConflictResolution/FrameworkListReader.cs
         if (TargetFrameworkDirectories != null)
         {
+            Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Scanning {0} TargetFrameworkDirectory(ies) for framework assemblies", TargetFrameworkDirectories.Length);
             foreach (ITaskItem targetFrameworkDirectory in TargetFrameworkDirectories)
             {
                 string frameworkListPath = Path.Combine(targetFrameworkDirectory.ItemSpec, "RedistList", "FrameworkList.xml");
                 if (!File.Exists(frameworkListPath))
                 {
+                    Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: FrameworkList.xml not found at '{0}'", frameworkListPath);
                     continue;
                 }
 
@@ -373,6 +436,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             }
         }
 
+        Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Found {0} target framework assembly name(s)", targetFrameworkAssemblyNames.Count);
         return targetFrameworkAssemblyNames;
     }
 
@@ -388,7 +452,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             string nugetProjectModelFile = Path.Combine(Path.GetDirectoryName(NuGetRestoreTargets)!, assemblyName.Name + ".dll");
             if (File.Exists(nugetProjectModelFile))
             {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Resolved assembly '{0}' from '{1}'", assemblyName.Name, nugetProjectModelFile);
                 return Assembly.LoadFrom(nugetProjectModelFile);
+            }
+            else
+            {
+                Log.LogMessage(MessageImportance.Low, "ReferenceTrimmer: Could not resolve assembly '{0}' - file not found at '{1}'", assemblyName.Name, nugetProjectModelFile);
             }
         }
 
