@@ -49,17 +49,19 @@
       <AdditionalFiles Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
       <EmbedInBinlog Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
       <FileWrites Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
-      <FileWrites Include="$(_ReferenceTrimmerUsedReferencesFile)" Condition="'$(EnableReferenceTrimmerDiagnostics)'=='true'" />
-      <FileWrites Include="$(_ReferenceTrimmerUnusedReferencesFile)" Condition="'$(EnableReferenceTrimmerDiagnostics)'=='true'" />
     </ItemGroup>
   </Target>
 
   <Target Name="_EmbedReferenceTrimmerDiagnosticsInBinlog"
           AfterTargets="CoreCompile"
           Condition="'$(EnableReferenceTrimmer)' != 'false' and '$(EnableReferenceTrimmerDiagnostics)' == 'true'">
-    <ItemGroup>
-      <EmbedInBinlog Include="$(_ReferenceTrimmerUsedReferencesFile)" Condition="Exists('$(_ReferenceTrimmerUsedReferencesFile)')" />
-      <EmbedInBinlog Include="$(_ReferenceTrimmerUnusedReferencesFile)" Condition="Exists('$(_ReferenceTrimmerUnusedReferencesFile)')" />
+    <ItemGroup Condition="Exists('$(_ReferenceTrimmerUsedReferencesFile)')">
+      <EmbedInBinlog Include="$(_ReferenceTrimmerUsedReferencesFile)" />
+      <FileWrites Include="$(_ReferenceTrimmerUsedReferencesFile)" />
+    </ItemGroup>
+    <ItemGroup Condition="Exists('$(_ReferenceTrimmerUnusedReferencesFile)')">
+      <EmbedInBinlog Include="$(_ReferenceTrimmerUnusedReferencesFile)" />
+      <FileWrites Include="$(_ReferenceTrimmerUnusedReferencesFile)" />
     </ItemGroup>
   </Target>
 </Project>
