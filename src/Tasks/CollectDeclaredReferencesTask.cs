@@ -61,9 +61,6 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         AppDomain.CurrentDomain.AssemblyResolve += ResolveAssembly;
         try
         {
-            Log.LogMessage(MessageImportance.Low, "OutputFile='{0}', TargetFrameworkMoniker='{1}', TargetPlatformMoniker='{2}', RuntimeIdentifier='{3}'",
-                OutputFile, TargetFrameworkMoniker, TargetPlatformMoniker, RuntimeIdentifier);
-
             List<DeclaredReference> declaredReferences = new();
 
             if (References != null)
@@ -90,7 +87,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     // Ignore references from packages. Those as handled later.
                     if (reference.GetMetadata("NuGetPackageId").Length != 0)
                     {
-                        Log.LogMessage(MessageImportance.Low, "Skipping Reference '{0}' because it comes from NuGet package '{1}' (handled via PackageReferences)", reference.ItemSpec, reference.GetMetadata("NuGetPackageId"));
+                        // Logs will be emitted for these references when processing the PackageReferences
                         continue;
                     }
 
@@ -108,25 +105,15 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     if (!string.IsNullOrEmpty(referenceHintPath) && File.Exists(referenceHintPath))
                     {
                         referencePath = Path.GetFullPath(referenceHintPath);
-                        Log.LogMessage(MessageImportance.Low, "Reference '{0}' resolved via HintPath to '{1}'", referenceSpec, referencePath);
                     }
                     else if (File.Exists(referenceSpec))
                     {
                         referencePath = Path.GetFullPath(referenceSpec);
-                        Log.LogMessage(MessageImportance.Low, "Reference '{0}' resolved via ItemSpec path to '{1}'", referenceSpec, referencePath);
                     }
                     else
                     {
                         var resolvedReference = ResolvedReferences.SingleOrDefault(rr => string.Equals(rr.GetMetadata("OriginalItemSpec"), referenceSpec, StringComparison.OrdinalIgnoreCase));
                         referencePath = resolvedReference is null ? null : resolvedReference.ItemSpec;
-                        if (referencePath is not null)
-                        {
-                            Log.LogMessage(MessageImportance.Low, "Reference '{0}' resolved via ResolvedReferences to '{1}'", referenceSpec, referencePath);
-                        }
-                        else
-                        {
-                            Log.LogMessage(MessageImportance.Low, "Reference '{0}' could not be resolved to a file path", referenceSpec);
-                        }
                     }
 
                     // If the reference is under the nuget package root, it's likely a Reference added in a package's props or targets.
@@ -141,7 +128,6 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     if (referencePath is not null)
                     {
-                        Log.LogMessage(MessageImportance.Low, "Including Reference '{0}' with resolved path '{1}'", referenceSpec, referencePath);
                         declaredReferences.Add(new DeclaredReference(referencePath, DeclaredReferenceKind.Reference, referenceSpec));
                     }
                 }
@@ -168,15 +154,12 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     bool isTransitiveDependency = !string.IsNullOrEmpty(projectReference.GetMetadata("NuGetPackageId"));
                     if (isTransitiveDependency)
                     {
-                        // Ignore transitive project references since the project doesn't have direct control over them.
-                        Log.LogMessage(MessageImportance.Low, "Skipping ProjectReference '{0}' because it is a transitive dependency (NuGetPackageId='{1}')", projectReference.ItemSpec, projectReference.GetMetadata("NuGetPackageId"));
                         continue;
                     }
 
                     string projectReferenceAssemblyPath = Path.GetFullPath(projectReference.ItemSpec);
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
-                    Log.LogMessage(MessageImportance.Low, "Including ProjectReference '{0}' (project file: '{1}', assembly path: '{2}')", projectReference.ItemSpec, referenceProjectFile, projectReferenceAssemblyPath);
                     declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
                 }
             }
@@ -187,7 +170,6 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
             if (PackageReferences != null)
             {
-                Log.LogMessage(MessageImportance.Low, "Processing {0} PackageReference(s)", PackageReferences.Length);
                 Dictionary<string, PackageInfo> packageInfos = GetPackageInfos();
                 foreach (ITaskItem packageReference in PackageReferences)
                 {
@@ -201,7 +183,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     if (!packageInfos.TryGetValue(packageReference.ItemSpec, out PackageInfo packageInfo))
                     {
                         // These are likely Analyzers, tools, etc.
-                        Log.LogMessage(MessageImportance.Low, "Skipping PackageReference '{0}' because it has no compile-time assemblies or build files (likely an Analyzer, tool, or content-only package)", packageReference.ItemSpec);
+                        Log.LogMessage(MessageImportance.Low, "Skipping PackageReference '{0}' because it has no compile-time assemblies (likely an Analyzer, tool, or content-only package)", packageReference.ItemSpec);
                         continue;
                     }
 
@@ -215,7 +197,6 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         continue;
                     }
 
-                    Log.LogMessage(MessageImportance.Low, "Including PackageReference '{0}' with {1} compile-time assembly(ies)", packageReference.ItemSpec, packageInfo.CompileTimeAssemblies.Count);
                     foreach (string assemblyPath in packageInfo.CompileTimeAssemblies)
                     {
                         declaredReferences.Add(new DeclaredReference(assemblyPath, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec));
