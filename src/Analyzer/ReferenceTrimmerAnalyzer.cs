@@ -249,7 +249,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         return null;
     }
 
-    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec, AdditionalSpec), one reference per line.
     // Keep in sync with SaveDeclaredReferences in CollectDeclaredReferencesTask.cs.
     private static IEnumerable<DeclaredReference> ReadDeclaredReferences(SourceText sourceText)
     {
@@ -267,6 +267,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
             int firstTab = -1;
             int secondTab = -1;
+            int thirdTab = -1;
             for (int i = start; i < end; i++)
             {
                 if (sourceText[i] == '\t')
@@ -275,21 +276,26 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     {
                         firstTab = i;
                     }
-                    else
+                    else if (secondTab == -1)
                     {
                         secondTab = i;
+                    }
+                    else
+                    {
+                        thirdTab = i;
                         break;
                     }
                 }
             }
 
-            if (firstTab == -1 || secondTab == -1)
+            if (firstTab == -1 || secondTab == -1 || thirdTab == -1)
             {
                 yield break;
             }
 
             string assemblyPath = sourceText.ToString(TextSpan.FromBounds(start, firstTab));
-            string spec = sourceText.ToString(TextSpan.FromBounds(secondTab + 1, end));
+            string spec = sourceText.ToString(TextSpan.FromBounds(secondTab + 1, thirdTab));
+            string additionalSpec = sourceText.ToString(TextSpan.FromBounds(thirdTab + 1, end));
 
             // Determine kind without allocating a string. The three possible values are
             // "Reference" (len 9), "ProjectReference" (len 16), "PackageReference" (len 16).
@@ -312,7 +318,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            yield return new DeclaredReference(assemblyPath, kind, spec);
+            yield return new DeclaredReference(assemblyPath, kind, spec, additionalSpec);
         }
     }
 }

@@ -476,7 +476,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         return false;
     }
 
-    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec, AdditionalSpec), one reference per line.
     // Keep in sync with ReadDeclaredReferences in ReferenceTrimmerAnalyzer.cs.
     private static void SaveDeclaredReferences(IReadOnlyList<DeclaredReference> declaredReferences, string filePath)
     {
@@ -497,6 +497,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             writer.Append(kindString);
             writer.Append(fieldDelimiter);
             writer.Append(reference.Spec);
+            writer.Append(fieldDelimiter);
+            writer.Append(reference.AdditionalSpec);
             writer.AppendLine();
         }
 
