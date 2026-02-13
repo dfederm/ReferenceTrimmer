@@ -11,9 +11,9 @@
 
   <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences" Condition="'$(EnableReferenceTrimmer)' != 'false'">
     <PropertyGroup>
-      <_ReferenceTrimmerDeclaredReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_DeclaredReferences.tsv</_ReferenceTrimmerDeclaredReferencesFile>
-      <_ReferenceTrimmerUsedReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_UsedReferences.log</_ReferenceTrimmerUsedReferencesFile>
-      <_ReferenceTrimmerUnusedReferencesFile>$(IntermediateOutputPath)\_ReferenceTrimmer_UnusedReferences.log</_ReferenceTrimmerUnusedReferencesFile>
+      <_ReferenceTrimmerDeclaredReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_DeclaredReferences.tsv'))</_ReferenceTrimmerDeclaredReferencesFile>
+      <_ReferenceTrimmerUsedReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_UsedReferences.log'))</_ReferenceTrimmerUsedReferencesFile>
+      <_ReferenceTrimmerUnusedReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_UnusedReferences.log'))</_ReferenceTrimmerUnusedReferencesFile>
     </PropertyGroup>
     <ItemGroup>
       <!--
