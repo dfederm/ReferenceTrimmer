@@ -129,7 +129,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     if (referencePath is not null)
                     {
-                        declaredReferences.Add(new DeclaredReference(referencePath, DeclaredReferenceKind.Reference, referenceSpec));
+                        declaredReferences.Add(new DeclaredReference(referencePath, DeclaredReferenceKind.Reference, referenceSpec, string.Empty));
                     }
                 }
             }
@@ -162,7 +162,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     string projectReferenceAssemblyPath = Path.GetFullPath(projectReference.ItemSpec);
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
-                    declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
+                    declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile, string.Empty));
                 }
             }
             else
@@ -199,9 +199,9 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         continue;
                     }
 
-                    foreach (string assemblyPath in packageInfo.CompileTimeAssemblies)
+                    foreach (var assemblyPath in packageInfo.CompileTimeAssemblies)
                     {
-                        declaredReferences.Add(new DeclaredReference(assemblyPath, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec));
+                        declaredReferences.Add(new DeclaredReference(assemblyPath.Item2, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec, assemblyPath.Item1));
                     }
                 }
             }
@@ -347,7 +347,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                         packageInfoBuilders.Add(packageId, packageInfoBuilder);
                     }
 
-                    packageInfoBuilder.AddCompileTimeAssemblies(nugetLibraryAssemblies);
+                    packageInfoBuilder.AddCompileTimeAssemblies(nugetLibrary.Name, nugetLibraryAssemblies);
                     packageInfoBuilder.AddBuildFiles(buildFiles);
 
                     // Recurse though dependents
@@ -476,7 +476,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         return false;
     }
 
-    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec, AdditionalSpec), one reference per line.
     // Keep in sync with ReadDeclaredReferences in ReferenceTrimmerAnalyzer.cs.
     private static void SaveDeclaredReferences(IReadOnlyList<DeclaredReference> declaredReferences, string filePath)
     {
@@ -497,6 +497,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             writer.Append(kindString);
             writer.Append(fieldDelimiter);
             writer.Append(reference.Spec);
+            writer.Append(fieldDelimiter);
+            writer.Append(reference.AdditionalSpec);
             writer.AppendLine();
         }
 
@@ -515,10 +517,10 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     private sealed class PackageInfoBuilder
     {
-        private List<string>? _compileTimeAssemblies;
+        private List<Tuple<string, string>>? _compileTimeAssemblies;
         private List<string>? _buildFiles;
 
-        public void AddCompileTimeAssemblies(List<string> compileTimeAssemblies)
+        public void AddCompileTimeAssemblies(string packageName, List<string> compileTimeAssemblies)
         {
             if (compileTimeAssemblies.Count == 0)
             {
@@ -526,7 +528,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             }
 
             _compileTimeAssemblies ??= new(compileTimeAssemblies.Count);
-            _compileTimeAssemblies.AddRange(compileTimeAssemblies);
+            _compileTimeAssemblies.AddRange(compileTimeAssemblies.Select(assemblyPath => Tuple.Create(packageName, assemblyPath)));
         }
 
         public void AddBuildFiles(List<string> buildFiles)
@@ -542,11 +544,11 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
         public PackageInfo ToPackageInfo()
             => new(
-                (IReadOnlyCollection<string>?)_compileTimeAssemblies ?? Array.Empty<string>(),
-                (IReadOnlyCollection<string>?)_buildFiles ?? Array.Empty<string>());
+                (IReadOnlyCollection<Tuple<string, string>>?)_compileTimeAssemblies ?? [],
+                (IReadOnlyCollection<string>?)_buildFiles ?? []);
     }
 
     private readonly record struct PackageInfo(
-        IReadOnlyCollection<string> CompileTimeAssemblies,
+        IReadOnlyCollection<Tuple<string, string>> CompileTimeAssemblies,
         IReadOnlyCollection<string> BuildFiles);
 }
