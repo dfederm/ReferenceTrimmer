@@ -26,20 +26,16 @@ If you're using [Central Package Management](https://learn.microsoft.com/en-us/n
 ```
 
 ### C#
-You'll need to enable C# documentation XML generation to ensure good analysis results. If your repo is not already using docxml globally, this can introduce a large number of errors and warnings specific to docxml. Additionally, turning on docxml adds additional output I/O that can slow down large repos.
+You'll need to enable C# documentation XML generation to ensure good analysis results (RT0000 will fire if it's not enabled). If your repo is not already using docxml globally, this can introduce a large number of errors and warnings specific to docxml. Additionally, turning on docxml adds additional output I/O that can slow down large repos.
 
-You can turn off specific docxml related warnings and errors while defaulting ReferenceTrimmer to off using a block of code like this in your `Directory.Build.props`. Turn on the ReferenceTrimmer build by setting `/p:EnableReferenceTrimmer=true` on the MSBuild command line or setting the same property value as an environment variable. You could create a separate build pipeline for your repo to run ReferenceTrimmer builds.
+If your repo does not already set `<GenerateDocumentationFile>` to `true`, add the following to your `Directory.Build.props` to enable it and suppress related warnings:
 
 ```xml
-  <!-- ReferenceTrimmer - run build with /p:EnableReferenceTrimmer=true to enable -->
-  <PropertyGroup Label="ReferenceTrimmer">
-    <EnableReferenceTrimmer Condition=" '$(EnableReferenceTrimmer)' == '' ">false</EnableReferenceTrimmer>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(EnableReferenceTrimmer)' == 'true' and '$(GenerateDocumentationFile)' != 'true' " Label="ReferenceTrimmer">
+  <PropertyGroup>
     <!-- Documentation file generation is required for more accurate C# detection. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
-    <!-- Suppress XML doc comment issues to avoid errors during ReferenceTrimmer:
+    <!-- Suppress XML doc comment issues:
          - CS0419: Ambiguous reference in cref attribute
          - CS1570: XML comment has badly formed XML
          - CS1573: Parameter has no matching param tag in the XML comment
@@ -52,7 +48,7 @@ You can turn off specific docxml related warnings and errors while defaulting Re
   </PropertyGroup>
 ```
 
-Note: To get better results, enable the [`IDE0005`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005) unnecessary `using` rule. This avoids the C# compiler seeing a false positive assembly usage from unneeded `using` directives causing it to miss a removable dependency. See also the note for why IDE0005 code analysis rule requires `<GenerateDocumentationFile>` property to be enabled. Documentation generation is also required for accuracy of used references detection (based on https://github.com/dotnet/roslyn/issues/66188).
+Note: To get better results, enable the [`IDE0005`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005) unnecessary `using` rule. This prevents the C# compiler from seeing false positive assembly usage from unneeded `using` directives, which could cause it to miss a removable dependency. Note that IDE0005 also requires `<GenerateDocumentationFile>` to be enabled. Documentation generation is also required for accuracy of used references detection (see https://github.com/dotnet/roslyn/issues/66188).
 
 #### What makes a reference non-trimmable?
 
@@ -141,6 +137,14 @@ Alternatively, you can add `TreatAsUsed` metadata to suppress all ReferenceTrimm
 
 ## Configuration
 `$(EnableReferenceTrimmer)` - Controls whether the build logic should run for a given project. Defaults to `true`.
+
+To make ReferenceTrimmer opt-in rather than always-on, you can default it to `false` in your `Directory.Build.props` and enable it via `/p:EnableReferenceTrimmer=true` on the MSBuild command line or as an environment variable. You could also create a separate build pipeline for your repo to run ReferenceTrimmer builds.
+
+```xml
+  <PropertyGroup>
+    <EnableReferenceTrimmer Condition=" '$(EnableReferenceTrimmer)' == '' ">false</EnableReferenceTrimmer>
+  </PropertyGroup>
+```
 
 `$(ReferenceTrimmerEnableVcxproj)` - Controls whether MSVC link flags are set up to print out unused libraries and delay-load DLLs. Defaults to `true`.
 
