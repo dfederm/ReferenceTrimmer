@@ -26,7 +26,7 @@ If you're using [Central Package Management](https://learn.microsoft.com/en-us/n
 ```
 
 ### C#
-You'll need to enable C# documentation XML generation to ensure good analysis results (RT0000 will fire if it's not enabled). If your repo is not already using docxml globally, this can introduce a large number of errors and warnings specific to docxml. Additionally, turning on docxml adds additional output I/O that can slow down large repos.
+By default, ReferenceTrimmer uses the Roslyn [`GetUsedAssemblyReferences`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.compilation.getusedassemblyreferences) API to determine which references are used. You'll need to enable C# documentation XML generation to ensure good analysis results (RT0000 will fire if it's not enabled). If your repo is not already using docxml globally, this can introduce a large number of errors and warnings specific to docxml. Additionally, turning on docxml adds additional output I/O that can slow down large repos.
 
 If your repo does not already set `<GenerateDocumentationFile>` to `true`, add the following to your `Directory.Build.props` to enable it and suppress related warnings:
 
@@ -49,6 +49,24 @@ If your repo does not already set `<GenerateDocumentationFile>` to `true`, add t
 ```
 
 Note: To get better results, enable the [`IDE0005`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005) unnecessary `using` rule. This prevents the C# compiler from seeing false positive assembly usage from unneeded `using` directives, which could cause it to miss a removable dependency. Note that IDE0005 also requires `<GenerateDocumentationFile>` to be enabled. Documentation generation is also required for accuracy of used references detection (see https://github.com/dotnet/roslyn/issues/66188).
+
+#### Experimental: Symbol-based analysis
+
+An alternative analysis mode is available that tracks symbol usage directly rather than relying on `GetUsedAssemblyReferences`. This mode can detect unused references that the default approach misses — for example, direct references to assemblies that are only used transitively by other dependencies.
+
+To opt in, set:
+
+```xml
+  <PropertyGroup>
+    <ReferenceTrimmerUseSymbolAnalysis>true</ReferenceTrimmerUseSymbolAnalysis>
+  </PropertyGroup>
+```
+
+Key differences from the default mode:
+- **Does not require `<GenerateDocumentationFile>`** — symbol-based detection is accurate regardless of documentation mode, and RT0000 is not emitted.
+- **More precise for ProjectReference and PackageReference** — only assemblies whose types or members are directly referenced in code are considered "used."
+- **Conservative for bare `<Reference>` items** — assemblies transitively needed by used assemblies are still treated as "used" to avoid breaking runtime dependencies.
+- **`<see cref>` references are not tracked** — references used only in XML documentation comments will be reported as removable.
 
 #### What makes a reference non-trimmable?
 
@@ -150,10 +168,14 @@ To make ReferenceTrimmer opt-in rather than always-on, you can default it to `fa
 
 `$(EnableReferenceTrimmerDiagnostics)` - When set to `true`, writes used and unused reference lists to the intermediate output directory for debugging. Defaults to `false`.
 
+`$(ReferenceTrimmerUseSymbolAnalysis)` - **Experimental.** When set to `true`, uses symbol-based usage detection instead of the default `GetUsedAssemblyReferences` compiler API. This approach tracks which assemblies contain symbols that the code actually references, which can detect unused references that the default approach misses (e.g., direct references to assemblies that are only used transitively by other dependencies). Defaults to `false`.
+
 ## How does it work?
 
 ### C#
-There are two main pieces to C# support. First there is an MSBuild task which collects all references passed to the compiler. There is also a Roslyn Analyzer which uses the [`GetUsedAssemblyReferences`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.compilation.getusedassemblyreferences) analyzer API which is available starting with Roslyn compiler that shipped with Visual Studio 2019 version 16.10, .NET 5. (see https://github.com/dotnet/roslyn/blob/main/docs/wiki/NuGet-packages.md#versioning). This is the compiler telling us exactly what references were needed as part of compilation. The analyzer then compares the set of references the Task gathered with the references the compiler says were used.
+There are two main pieces to C# support. First there is an MSBuild task which collects all references passed to the compiler. There is also a Roslyn Analyzer which determines which references are actually used and compares them against the declared references the Task gathered.
+
+By default, the analyzer uses the [`GetUsedAssemblyReferences`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.compilation.getusedassemblyreferences) compiler API (available starting with Visual Studio 2019 version 16.10 / .NET 5). When `ReferenceTrimmerUseSymbolAnalysis` is enabled, it instead registers for symbol declarations and code operations to track which referenced assemblies contain symbols that the code actually uses.
 
 ### C++ (.vcxproj projects)
 ReferenceTrimmer enables the MSVC `link.exe` flags noted above, then parses output coming from the `Link` MSBuild task. It categorizes the outputs and emits them into the MSBuild console output and the JSON output file noted above. It does not issue MSBuild warnings at this time.

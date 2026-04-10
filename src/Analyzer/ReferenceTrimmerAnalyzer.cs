@@ -1,6 +1,8 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 using ReferenceTrimmer.Shared;
 
@@ -69,14 +71,49 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
     {
         context.EnableConcurrentExecution();
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.RegisterCompilationAction(DumpUsedReferences);
+        context.RegisterCompilationStartAction(CompilationStart);
     }
 
-    private static void DumpUsedReferences(CompilationAnalysisContext context)
+    private static void CompilationStart(CompilationStartAnalysisContext context)
+    {
+        // Check if ReferenceTrimmer is enabled
+        AdditionalText? declaredReferencesFile = FindDeclaredReferencesFile(context.Options.AdditionalFiles);
+        if (declaredReferencesFile == null)
+        {
+            return;
+        }
+
+        Compilation compilation = context.Compilation;
+
+        if (!compilation.Options.Errors.IsEmpty)
+        {
+            return;
+        }
+
+        var globalOptions = context.Options.AnalyzerConfigOptionsProvider.GlobalOptions;
+        bool useSymbolAnalysis =
+            globalOptions.TryGetValue("build_property.ReferenceTrimmerUseSymbolAnalysis", out string? useSymbol)
+            && string.Equals(useSymbol, "true", StringComparison.OrdinalIgnoreCase);
+
+        if (useSymbolAnalysis)
+        {
+            InitializeSymbolBasedAnalysis(context, compilation, declaredReferencesFile);
+        }
+        else
+        {
+            context.RegisterCompilationEndAction(endContext => RunLegacyAnalysis(endContext, declaredReferencesFile));
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  Legacy analysis path (GetUsedAssemblyReferences)
+    // ──────────────────────────────────────────────────────────────────────
+
+    private static void RunLegacyAnalysis(CompilationAnalysisContext context, AdditionalText declaredReferencesFile)
     {
         try
         {
-            DumpUsedReferencesCore(context);
+            RunLegacyAnalysisCore(context, declaredReferencesFile);
         }
         catch (OperationCanceledException)
         {
@@ -88,15 +125,8 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void DumpUsedReferencesCore(CompilationAnalysisContext context)
+    private static void RunLegacyAnalysisCore(CompilationAnalysisContext context, AdditionalText declaredReferencesFile)
     {
-        AdditionalText? declaredReferencesFile = GetDeclaredReferencesFile(context);
-        if (declaredReferencesFile == null)
-        {
-            // Reference Trimmer is disabled
-            return;
-        }
-
         SourceText? sourceText = declaredReferencesFile.GetText(context.CancellationToken);
         if (sourceText == null)
         {
@@ -109,11 +139,6 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(RT0000Descriptor, Location.None));
         }
 
-        if (!compilation.Options.Errors.IsEmpty)
-        {
-            return;
-        }
-
         HashSet<string> usedReferences = new(StringComparer.OrdinalIgnoreCase);
         foreach (MetadataReference metadataReference in compilation.GetUsedAssemblyReferences())
         {
@@ -123,8 +148,349 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        var globalOptions = context.Options.AnalyzerConfigOptionsProvider.GlobalOptions;
-        if (globalOptions.TryGetValue("build_property.EnableReferenceTrimmerDiagnostics", out string? enableDiagnostics)
+        ReportUnusedReferences(context, declaredReferencesFile, sourceText, usedReferences, usedReferences);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  Symbol-based analysis path (experimental, opt-in)
+    // ──────────────────────────────────────────────────────────────────────
+
+    private static void InitializeSymbolBasedAnalysis(
+        CompilationStartAnalysisContext context,
+        Compilation compilation,
+        AdditionalText declaredReferencesFile)
+    {
+        // Build mappings from reference assembly identities to their metadata reference display paths.
+        // These are used both for symbol tracking and for the transitive closure computation.
+        var assemblyToPath = new Dictionary<AssemblyIdentity, string>();
+        var pathToAssembly = new Dictionary<string, IAssemblySymbol>(StringComparer.OrdinalIgnoreCase);
+        foreach (MetadataReference reference in compilation.References)
+        {
+            if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol asm && reference.Display != null)
+            {
+                if (!assemblyToPath.ContainsKey(asm.Identity))
+                {
+                    assemblyToPath.Add(asm.Identity, reference.Display);
+                }
+
+                if (!pathToAssembly.ContainsKey(reference.Display))
+                {
+                    pathToAssembly.Add(reference.Display, asm);
+                }
+            }
+        }
+
+        int totalReferenceCount = assemblyToPath.Count;
+        var usedReferencePaths = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+
+        void TrackAssembly(IAssemblySymbol? assembly)
+        {
+            // Fast exit: if all reference assemblies are already tracked, skip the lookup.
+            if (usedReferencePaths.Count >= totalReferenceCount)
+            {
+                return;
+            }
+
+            if (assembly != null && assemblyToPath.TryGetValue(assembly.Identity, out string? path))
+            {
+                usedReferencePaths.TryAdd(path, 0);
+            }
+        }
+
+        void TrackType(ITypeSymbol? type)
+        {
+            while (type != null)
+            {
+                if (usedReferencePaths.Count >= totalReferenceCount)
+                {
+                    return;
+                }
+
+                switch (type)
+                {
+                    case IArrayTypeSymbol array:
+                        type = array.ElementType;
+                        continue;
+                    case IPointerTypeSymbol pointer:
+                        type = pointer.PointedAtType;
+                        continue;
+                    default:
+                        TrackAssembly(type.ContainingAssembly);
+                        if (type is INamedTypeSymbol named)
+                        {
+                            foreach (ITypeSymbol typeArg in named.TypeArguments)
+                            {
+                                TrackType(typeArg);
+                            }
+                        }
+
+                        return;
+                }
+            }
+        }
+
+        void TrackAttribute(AttributeData attr)
+        {
+            TrackType(attr.AttributeClass);
+            foreach (TypedConstant arg in attr.ConstructorArguments)
+            {
+                TrackTypedConstant(arg);
+            }
+
+            foreach (KeyValuePair<string, TypedConstant> arg in attr.NamedArguments)
+            {
+                TrackTypedConstant(arg.Value);
+            }
+        }
+
+        void TrackTypedConstant(TypedConstant constant)
+        {
+            TrackType(constant.Type);
+            if (constant.Kind == TypedConstantKind.Type && constant.Value is ITypeSymbol typeValue)
+            {
+                TrackType(typeValue);
+            }
+            else if (constant.Kind == TypedConstantKind.Array && !constant.Values.IsDefault)
+            {
+                foreach (TypedConstant element in constant.Values)
+                {
+                    TrackTypedConstant(element);
+                }
+            }
+        }
+
+        void TrackPatternTypes(IPatternOperation pattern)
+        {
+            switch (pattern)
+            {
+                case ITypePatternOperation typePattern:
+                    TrackType(typePattern.MatchedType);
+                    break;
+                case IDeclarationPatternOperation declPattern:
+                    TrackType(declPattern.MatchedType);
+                    break;
+                case IRecursivePatternOperation recursivePattern:
+                    TrackType(recursivePattern.MatchedType);
+                    break;
+                case INegatedPatternOperation negated:
+                    TrackPatternTypes(negated.Pattern);
+                    break;
+                case IBinaryPatternOperation binary:
+                    TrackPatternTypes(binary.LeftPattern);
+                    TrackPatternTypes(binary.RightPattern);
+                    break;
+            }
+        }
+
+        // Track declaration-level type references: base types, interfaces, member signatures, attributes.
+        context.RegisterSymbolAction(
+            ctx =>
+            {
+                switch (ctx.Symbol)
+                {
+                    case INamedTypeSymbol namedType:
+                        TrackType(namedType.BaseType);
+                        foreach (INamedTypeSymbol iface in namedType.Interfaces)
+                        {
+                            TrackType(iface);
+                        }
+
+                        foreach (ITypeParameterSymbol typeParam in namedType.TypeParameters)
+                        {
+                            foreach (ITypeSymbol constraint in typeParam.ConstraintTypes)
+                            {
+                                TrackType(constraint);
+                            }
+                        }
+
+                        foreach (AttributeData attr in namedType.GetAttributes())
+                        {
+                            TrackAttribute(attr);
+                        }
+
+                        break;
+
+                    case IMethodSymbol method:
+                        TrackType(method.ReturnType);
+                        foreach (IParameterSymbol param in method.Parameters)
+                        {
+                            TrackType(param.Type);
+                        }
+
+                        foreach (ITypeParameterSymbol typeParam in method.TypeParameters)
+                        {
+                            foreach (ITypeSymbol constraint in typeParam.ConstraintTypes)
+                            {
+                                TrackType(constraint);
+                            }
+                        }
+
+                        foreach (AttributeData attr in method.GetAttributes())
+                        {
+                            TrackAttribute(attr);
+                        }
+
+                        foreach (AttributeData attr in method.GetReturnTypeAttributes())
+                        {
+                            TrackAttribute(attr);
+                        }
+
+                        break;
+
+                    case IPropertySymbol property:
+                        TrackType(property.Type);
+                        foreach (AttributeData attr in property.GetAttributes())
+                        {
+                            TrackAttribute(attr);
+                        }
+
+                        break;
+
+                    case IFieldSymbol field:
+                        TrackType(field.Type);
+                        foreach (AttributeData attr in field.GetAttributes())
+                        {
+                            TrackAttribute(attr);
+                        }
+
+                        break;
+
+                    case IEventSymbol evt:
+                        TrackType(evt.Type);
+                        foreach (AttributeData attr in evt.GetAttributes())
+                        {
+                            TrackAttribute(attr);
+                        }
+
+                        break;
+                }
+            },
+            SymbolKind.NamedType,
+            SymbolKind.Method,
+            SymbolKind.Property,
+            SymbolKind.Field,
+            SymbolKind.Event);
+
+        // Track body-level references: method calls, member access, object creation, type checks, etc.
+        context.RegisterOperationAction(
+            ctx =>
+            {
+                IOperation operation = ctx.Operation;
+                TrackType(operation.Type);
+
+                switch (operation)
+                {
+                    case IInvocationOperation invocation:
+                        TrackAssembly(invocation.TargetMethod.ContainingAssembly);
+                        foreach (ITypeSymbol typeArg in invocation.TargetMethod.TypeArguments)
+                        {
+                            TrackType(typeArg);
+                        }
+
+                        break;
+
+                    case IObjectCreationOperation creation:
+                        TrackAssembly(creation.Constructor?.ContainingAssembly);
+                        break;
+
+                    case IMemberReferenceOperation memberRef:
+                        TrackAssembly(memberRef.Member.ContainingAssembly);
+                        break;
+
+                    case ITypeOfOperation typeOfOp:
+                        TrackType(typeOfOp.TypeOperand);
+                        break;
+
+                    case IConversionOperation conversion:
+                        TrackAssembly(conversion.OperatorMethod?.ContainingAssembly);
+                        break;
+
+                    case IIsTypeOperation isTypeOp:
+                        TrackType(isTypeOp.TypeOperand);
+                        break;
+
+                    case IIsPatternOperation isPatternOp:
+                        TrackPatternTypes(isPatternOp.Pattern);
+                        break;
+
+                    case ICatchClauseOperation catchClause:
+                        TrackType(catchClause.ExceptionType);
+                        break;
+                }
+            },
+            OperationKind.Invocation,
+            OperationKind.ObjectCreation,
+            OperationKind.FieldReference,
+            OperationKind.PropertyReference,
+            OperationKind.EventReference,
+            OperationKind.MethodReference,
+            OperationKind.TypeOf,
+            OperationKind.Conversion,
+            OperationKind.IsType,
+            OperationKind.IsPattern,
+            OperationKind.CatchClause);
+
+        context.RegisterCompilationEndAction(endContext =>
+        {
+            try
+            {
+                // Track assembly-level attributes
+                foreach (AttributeData attr in compilation.Assembly.GetAttributes())
+                {
+                    TrackAttribute(attr);
+                }
+
+                SourceText? sourceText = declaredReferencesFile.GetText(endContext.CancellationToken);
+                if (sourceText == null)
+                {
+                    return;
+                }
+
+                HashSet<string> usedReferences = new(usedReferencePaths.Keys, StringComparer.OrdinalIgnoreCase);
+
+                // For bare Reference items (RT0001), we always need a conservative "transitively used" set
+                // because bare References control copy-to-output behavior directly and have no transitive
+                // resolution. Removing a bare Reference needed at runtime would break the application.
+                //
+                // For ProjectReference items (RT0002), we also need the conservative set when
+                // DisableTransitiveProjectReferences is enabled, since MSBuild won't propagate transitive
+                // project dependencies in that case.
+                HashSet<string> transitivelyUsedReferences = ComputeTransitivelyUsedReferences(assemblyToPath, pathToAssembly, usedReferences);
+
+                ReportUnusedReferences(endContext, declaredReferencesFile, sourceText, usedReferences, transitivelyUsedReferences);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                endContext.ReportDiagnostic(Diagnostic.Create(RT9999Descriptor, Location.None, ex.Message));
+            }
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  Shared reporting logic
+    // ──────────────────────────────────────────────────────────────────────
+
+    private static void ReportUnusedReferences(
+        CompilationAnalysisContext context,
+        AdditionalText declaredReferencesFile,
+        SourceText sourceText,
+        HashSet<string> usedReferences,
+        HashSet<string> transitivelyUsedReferences)
+    {
+        Compilation compilation = context.Compilation;
+
+        bool disableTransitiveProjectReferences =
+            context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
+                .TryGetValue("build_property.DisableTransitiveProjectReferences", out string? disableTransitive)
+            && string.Equals(disableTransitive, "true", StringComparison.OrdinalIgnoreCase);
+        HashSet<string> projectReferenceUsedSet = disableTransitiveProjectReferences ? transitivelyUsedReferences : usedReferences;
+
+        if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
+                .TryGetValue("build_property.EnableReferenceTrimmerDiagnostics", out string? enableDiagnostics)
             && string.Equals(enableDiagnostics, "true", StringComparison.OrdinalIgnoreCase))
         {
             HashSet<string> unusedReferences = new(StringComparer.OrdinalIgnoreCase);
@@ -146,7 +512,8 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             {
                 case DeclaredReferenceKind.Reference:
                 {
-                    if (!usedReferences.Contains(declaredReference.AssemblyPath))
+                    // Use the conservative transitively-used set for bare References
+                    if (!transitivelyUsedReferences.Contains(declaredReference.AssemblyPath))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0001Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -155,7 +522,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 }
                 case DeclaredReferenceKind.ProjectReference:
                 {
-                    if (!usedReferences.Contains(declaredReference.AssemblyPath))
+                    if (!projectReferenceUsedSet.Contains(declaredReference.AssemblyPath))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0002Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -188,6 +555,52 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    //  Helpers
+    // ──────────────────────────────────────────────────────────────────────
+
+    private static AdditionalText? FindDeclaredReferencesFile(ImmutableArray<AdditionalText> additionalFiles)
+    {
+        foreach (AdditionalText additionalText in additionalFiles)
+        {
+            if (Path.GetFileName(additionalText.Path).Equals(DeclaredReferencesFileName, StringComparison.Ordinal))
+            {
+                return additionalText;
+            }
+        }
+
+        return null;
+    }
+
+    private static HashSet<string> ComputeTransitivelyUsedReferences(
+        Dictionary<AssemblyIdentity, string> identityToPath,
+        Dictionary<string, IAssemblySymbol> pathToAssembly,
+        HashSet<string> usedReferences)
+    {
+        HashSet<string> transitivelyUsed = new(usedReferences, StringComparer.OrdinalIgnoreCase);
+        Queue<string> queue = new(usedReferences);
+        while (queue.Count > 0)
+        {
+            string path = queue.Dequeue();
+            if (pathToAssembly.TryGetValue(path, out IAssemblySymbol? asm))
+            {
+                foreach (IModuleSymbol module in asm.Modules)
+                {
+                    foreach (AssemblyIdentity dep in module.ReferencedAssemblies)
+                    {
+                        if (identityToPath.TryGetValue(dep, out string? depPath)
+                            && transitivelyUsed.Add(depPath))
+                        {
+                            queue.Enqueue(depPath);
+                        }
+                    }
+                }
+            }
+        }
+
+        return transitivelyUsed;
+    }
+
     private static void DumpReferencesInfo(HashSet<string> usedReferences, HashSet<string> unusedReferences, string declaredReferencesPath)
     {
         string dir = Path.GetDirectoryName(declaredReferencesPath);
@@ -217,19 +630,6 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         catch
         {
         }
-    }
-
-    private static AdditionalText? GetDeclaredReferencesFile(CompilationAnalysisContext context)
-    {
-        foreach (AdditionalText additionalText in context.Options.AdditionalFiles)
-        {
-            if (Path.GetFileName(additionalText.Path).Equals(DeclaredReferencesFileName, StringComparison.Ordinal))
-            {
-                return additionalText;
-            }
-        }
-
-        return null;
     }
 
     // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.

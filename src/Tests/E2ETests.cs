@@ -32,33 +32,44 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public Task UsedProjectReference()
-    {
-        return RunMSBuildAsync(
-            projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
-    }
-
-    [TestMethod]
-    public Task UsedProjectReferenceProduceReferenceAssembly()
-    {
-        return RunMSBuildAsync(
-            projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
-    }
-
-    [TestMethod]
-    public Task UsedProjectReferenceNoReferenceAssembly()
-    {
-        return RunMSBuildAsync(
-            projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
-    }
-
-    [TestMethod]
-    [DataRow(true)]
     [DataRow(false)]
-    public Task UnusedProjectReference(bool enableReferenceTrimmerDiagnostics)
+    [DataRow(true)]
+    public Task UsedProjectReference(bool useSymbolAnalysis)
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UsedProjectReferenceProduceReferenceAssembly(bool useSymbolAnalysis)
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UsedProjectReferenceNoReferenceAssembly(bool useSymbolAnalysis)
+    {
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
+    }
+
+    [TestMethod]
+    [DataRow(true, false)]
+    [DataRow(false, false)]
+    [DataRow(true, true)]
+    [DataRow(false, true)]
+    public Task UnusedProjectReference(bool enableReferenceTrimmerDiagnostics, bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -66,57 +77,75 @@ public sealed class E2ETests
             {
                 new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
             },
-            enableReferenceTrimmerDiagnostics: enableReferenceTrimmerDiagnostics);
+            enableReferenceTrimmerDiagnostics: enableReferenceTrimmerDiagnostics,
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedProjectReferenceProduceReferenceAssembly()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedProjectReferenceProduceReferenceAssembly(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
                 new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedProjectReferenceNoReferenceAssembly()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedProjectReferenceNoReferenceAssembly(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
                 new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedProjectReferenceNoWarn()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedProjectReferenceNoWarn(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedProjectReferenceTreatAsUsed()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedProjectReferenceTreatAsUsed(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: Array.Empty<Warning>(),
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedProjectReferenceSuppressed()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedProjectReferenceSuppressed(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedTransitiveProjectReference()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedTransitiveProjectReference(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -124,11 +153,14 @@ public sealed class E2ETests
             {
                 // Only the Dependency gets the warning. Library doesn't get penalized for a transitive dependency.
                 new Warning("RT0002: ProjectReference ../TransitiveDependency/TransitiveDependency.csproj can be removed", "Dependency/Dependency.csproj"),
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedDirectAndTransitiveProjectReference()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedDirectAndTransitiveProjectReference(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -137,84 +169,118 @@ public sealed class E2ETests
                 // Both the Library and Dependency get the warning since both directly referenced it.
                 new Warning("RT0002: ProjectReference ../TransitiveDependency/TransitiveDependency.csproj can be removed", "Dependency/Dependency.csproj"),
                 new Warning("RT0002: ProjectReference ../TransitiveDependency/TransitiveDependency.csproj can be removed", "Library/Library.csproj"),
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task UsedReferenceHintPath()
+    public Task UnusedDirectReferenceUsedTransitively()
     {
-        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
+        // Library directly references TransitiveDependency but doesn't use it.
+        // Dependency uses TransitiveDependency. Symbol-based analysis is required to
+        // reliably detect this as unused — the legacy approach may or may not depending
+        // on whether reference assemblies strip the transitive metadata.
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                new Warning("RT0002: ProjectReference ../TransitiveDependency/TransitiveDependency.csproj can be removed", "Library/Library.csproj"),
+            },
+            useSymbolAnalysis: true);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UsedReferenceHintPath(bool useSymbolAnalysis)
+    {
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task UsedReferenceItemSpec()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UsedReferenceItemSpec(bool useSymbolAnalysis)
     {
-        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task UnusedReferenceHintPath()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnusedReferenceHintPath(bool useSymbolAnalysis)
     {
-        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
                 new Warning("RT0001: Reference Dependency can be removed", "Library/Library.csproj"),
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task UnusedReferenceHintPathNoWarn()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnusedReferenceHintPathNoWarn(bool useSymbolAnalysis)
     {
-        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task UnusedReferenceHintPathTreatAsUsed()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnusedReferenceHintPathTreatAsUsed(bool useSymbolAnalysis)
     {
-        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: Array.Empty<Warning>(),
+            useSymbolAnalysis: useSymbolAnalysis);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: Array.Empty<Warning>(),
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task UnusedReferenceItemSpec()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnusedReferenceItemSpec(bool useSymbolAnalysis)
     {
-        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -230,128 +296,169 @@ public sealed class E2ETests
                         @"RT0001: Reference ..\Dependency\bin\Debug\net472\\Dependency.dll can be removed",
                         @"RT0001: Reference ../Dependency/bin/Debug/net472/Dependency.dll can be removed",
                     ]),
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task UnusedReferenceItemSpecNoWarn()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnusedReferenceItemSpecNoWarn(bool useSymbolAnalysis)
     {
-        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task UnusedReferenceItemSpecTreatAsUsed()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnusedReferenceItemSpecTreatAsUsed(bool useSymbolAnalysis)
     {
-        // For direct references, MSBuild can't determine build order so we need to ensure the dependency is already built
         await RunMSBuildAsync(
             projectFile: "Dependency/Dependency.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: Array.Empty<Warning>(),
+            useSymbolAnalysis: useSymbolAnalysis);
 
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: Array.Empty<Warning>());
+            expectedWarnings: Array.Empty<Warning>(),
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     [OSCondition(OperatingSystems.Windows, IgnoreMessage = "The GAC is Windows-specific")]
-    public async Task UnusedReferenceFromGac()
+    public async Task UnusedReferenceFromGac(bool useSymbolAnalysis)
     {
         await RunMSBuildAsync(
             projectFile: "Library.csproj",
             expectedWarnings: new[]
             {
                 new Warning("RT0001: Reference Microsoft.Office.Interop.Outlook can be removed", "Library.csproj"),
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     [OSCondition(OperatingSystems.Windows, IgnoreMessage = "The GAC is Windows-specific")]
-    public async Task UsedReferenceFromGac()
+    public async Task UsedReferenceFromGac(bool useSymbolAnalysis)
     {
         await RunMSBuildAsync(
             projectFile: "Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UsedPackageReference()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UsedPackageReference(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UsedIndirectPackageReference()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UsedIndirectPackageReference(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "WebHost/WebHost.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedPackageReference()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedPackageReference(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
                 new Warning("RT0003: PackageReference Newtonsoft.Json can be removed", "Library/Library.csproj")
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedPackageReferenceNoWarn()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedPackageReferenceDocDisabled(bool useSymbolAnalysis)
+    {
+        // Legacy: RT0000 fires (doc generation disabled warning); the unused package is not detected
+        //         because GetUsedAssemblyReferences is less accurate without doc generation.
+        // Symbol analysis: RT0003 fires (unused package correctly detected regardless of doc mode).
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: useSymbolAnalysis
+                ? new[] { new Warning("RT0003: PackageReference Newtonsoft.Json can be removed", "Library/Library.csproj") }
+                : new[] { new Warning("RT0000: Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection", "Library/Library.csproj") },
+            useSymbolAnalysis: useSymbolAnalysis);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedPackageReferenceNoWarn(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedPackageReferenceTreatAsUsed()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UnusedPackageReferenceTreatAsUsed(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UnusedPackageReferenceDocDisabled()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task BuildPackageReference(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: new[]
-            {
-                new Warning("RT0000: Enable /doc parameter or in MSBuild set <GenerateDocumentationFile>true</GenerateDocumentationFile> for accuracy of used references detection", "Library/Library.csproj")
-            });
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task BuildPackageReference()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task MissingReferenceSourceTarget(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task MissingReferenceSourceTarget()
-    {
-        return RunMSBuildAsync(
-            projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
-    }
-
-    [TestMethod]
-    public Task PlatformPackageConflictResolution()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task PlatformPackageConflictResolution(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -359,64 +466,86 @@ public sealed class E2ETests
             {
                 // TODO: These "metapackages" should not be reported.
                 new Warning("RT0003: PackageReference NETStandard.Library can be removed", "Library/Library.csproj"),
-            });
+            },
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task NoTargets()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task NoTargets(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Project.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task TargetFrameworkWithOs()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task TargetFrameworkWithOs(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task AbsoluteIntermediateOutputPath()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task AbsoluteIntermediateOutputPath(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task BuildExtensions()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task BuildExtensions(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task ReferenceInPackage()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task ReferenceInPackage(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Tests/Tests.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task ReferenceTrimmerDisabled()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task ReferenceTrimmerDisabled(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     [OSCondition(OperatingSystems.Windows, IgnoreMessage = "This test only applies to Windows")]
-    public async Task LegacyStyleProject()
+    public async Task LegacyStyleProject(bool useSymbolAnalysis)
     {
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
@@ -428,8 +557,8 @@ public sealed class E2ETests
             expectedWarnings: [],
             expectedConsoleOutputs:
             [
-                "Unused libraries:",   // Ensure link.exe unused lib flags are active
-                @"\user32.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
+                "Unused libraries:",
+                @"\user32.lib",
                 "Unused MSVC libraries detected in project",
                 "  * Default Windows SDK import libraries:",
                 "    - Libraries needed: ",
@@ -447,10 +576,10 @@ public sealed class E2ETests
             expectedWarnings: [],
             expectedConsoleOutputs:
             [
-                "Unused libraries:",   // Ensure link.exe unused lib flags are active
+                "Unused libraries:",
                 "Unused MSVC libraries detected in project",
                 "  * Other libraries - ",
-                @"\Library.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
+                @"\Library.lib",
             ],
             expectUnusedMsvcLibrariesLog: true);
     }
@@ -464,39 +593,48 @@ public sealed class E2ETests
             expectedWarnings: [],
             expectedConsoleOutputs:
             [
-                "Unused libraries:",   // Ensure link.exe unused lib flags are active
+                "Unused libraries:",
                 "Unused MSVC libraries detected in project",
                 "  * Other libraries - ",
-                @"\DLL.lib",  // Tail of variable unused lib paths like "C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x86\user32.lib"
+                @"\DLL.lib",
             ],
             expectUnusedMsvcLibrariesLog: true);
     }
 
     [TestMethod]
-    public Task WpfApp()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task WpfApp(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "WpfApp/WpfApp.csproj",
-            expectedWarnings: []);
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task PackageReferenceWithFakeBuildFile()
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task PackageReferenceWithFakeBuildFile(bool useSymbolAnalysis)
     {
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings:
             [
                 new Warning("RT0003: PackageReference Microsoft.Extensions.Primitives can be removed", "Library/Library.csproj"),
-            ]);
+            ],
+            useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public async Task IgnorePackageBuildFiles()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task IgnorePackageBuildFiles(bool useSymbolAnalysis)
     {
         await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis,
             globalProperties: new Dictionary<string, string>
             {
                 { "IgnorePackageBuildFiles", "false" },
@@ -508,6 +646,7 @@ public sealed class E2ETests
             [
                 new Warning("RT0003: PackageReference Microsoft.Extensions.Logging can be removed", "Library/Library.csproj"),
             ],
+            useSymbolAnalysis: useSymbolAnalysis,
             globalProperties: new Dictionary<string, string>
             {
                 { "IgnorePackageBuildFiles", "true" },
@@ -643,6 +782,7 @@ public sealed class E2ETests
         string[]? expectedConsoleOutputs = null,
         bool expectUnusedMsvcLibrariesLog = false,
         bool enableReferenceTrimmerDiagnostics = false,
+        bool useSymbolAnalysis = false,
         IReadOnlyDictionary<string, string>? globalProperties = null)
     {
         var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext?.TestName ?? string.Empty));
@@ -668,7 +808,8 @@ public sealed class E2ETests
                              $"-flp1:logfile=\"{errorsFilePath}\";errorsonly " +
                              $"-flp2:logfile=\"{warningsFilePath}\";warningsonly " +
                              $"-distributedlogger:CentralLogger,\"{loggersAssemblyPath}\"*ForwardingLogger,\"{loggersAssemblyPath}\" " +
-                             (enableReferenceTrimmerDiagnostics ? "-p:EnableReferenceTrimmerDiagnostics=true" : string.Empty);
+                             (enableReferenceTrimmerDiagnostics ? "-p:EnableReferenceTrimmerDiagnostics=true " : string.Empty) +
+                             (useSymbolAnalysis ? "-p:ReferenceTrimmerUseSymbolAnalysis=true " : string.Empty);
 
         if (globalProperties is not null)
         {
