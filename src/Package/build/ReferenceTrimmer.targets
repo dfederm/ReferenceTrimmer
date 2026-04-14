@@ -9,7 +9,11 @@
     <CompilerVisibleProperty Include="EnableReferenceTrimmerDiagnostics"/>
   </ItemGroup>
 
-  <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences" Condition="'$(EnableReferenceTrimmer)' != 'false'">
+  <Target Name="CollectDeclaredReferences"
+          DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences"
+          Condition="'$(EnableReferenceTrimmer)' != 'false'"
+          Inputs="$(MSBuildProjectFullPath);$(ProjectAssetsFile)"
+          Outputs="$(MSBuildProjectDirectory)\$(IntermediateOutputPath)_ReferenceTrimmer_DeclaredReferences.tsv">
     <PropertyGroup>
       <_ReferenceTrimmerDeclaredReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_DeclaredReferences.tsv'))</_ReferenceTrimmerDeclaredReferencesFile>
       <_ReferenceTrimmerUsedReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_UsedReferences.log'))</_ReferenceTrimmerUsedReferencesFile>

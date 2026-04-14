@@ -506,6 +506,9 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             string existing = File.ReadAllText(filePath);
             if (string.Equals(existing, newContent, StringComparison.OrdinalIgnoreCase))
             {
+                // Touch the file so that MSBuild's Inputs/Outputs incrementality check
+                // sees a fresh timestamp and can skip the target on subsequent builds.
+                File.SetLastWriteTimeUtc(filePath, DateTime.UtcNow);
                 return;
             }
         }
