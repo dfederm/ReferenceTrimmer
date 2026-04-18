@@ -446,6 +446,28 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     return;
                 }
 
+                // Mark type-forwarding assemblies as used when the destination assembly is used.
+                // E.g. a package may forward types to the runtime; the code uses the type (tracking the
+                // runtime assembly) but the forwarder assembly must also be kept as a reference.
+                foreach (KeyValuePair<string, IAssemblySymbol> kvp in pathToAssembly)
+                {
+                    if (usedReferencePaths.ContainsKey(kvp.Key))
+                    {
+                        continue;
+                    }
+
+                    foreach (INamedTypeSymbol forwardedType in kvp.Value.GetForwardedTypes())
+                    {
+                        if (forwardedType.ContainingAssembly != null
+                            && assemblyToPath.TryGetValue(forwardedType.ContainingAssembly.Identity, out string? destPath)
+                            && usedReferencePaths.ContainsKey(destPath))
+                        {
+                            usedReferencePaths.TryAdd(kvp.Key, 0);
+                            break;
+                        }
+                    }
+                }
+
                 HashSet<string> usedReferences = new(usedReferencePaths.Keys, StringComparer.OrdinalIgnoreCase);
 
                 // For bare Reference items (RT0001), we always need a conservative "transitively used" set
