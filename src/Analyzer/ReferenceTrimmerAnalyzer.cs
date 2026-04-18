@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 using ReferenceTrimmer.Shared;
+using CSharp = Microsoft.CodeAnalysis.CSharp;
 
 namespace ReferenceTrimmer.Analyzer;
 
@@ -70,7 +72,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
     public override void Initialize(AnalysisContext context)
     {
         context.EnableConcurrentExecution();
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze);
         context.RegisterCompilationStartAction(CompilationStart);
     }
 
@@ -214,6 +216,14 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     case IPointerTypeSymbol pointer:
                         type = pointer.PointedAtType;
                         continue;
+                    case IFunctionPointerTypeSymbol funcPtr:
+                        TrackType(funcPtr.Signature.ReturnType);
+                        foreach (IParameterSymbol fpParam in funcPtr.Signature.Parameters)
+                        {
+                            TrackType(fpParam.Type);
+                        }
+
+                        return;
                     default:
                         TrackAssembly(type.ContainingAssembly);
                         if (type is INamedTypeSymbol named)
@@ -416,6 +426,35 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     case ICatchClauseOperation catchClause:
                         TrackType(catchClause.ExceptionType);
                         break;
+
+                    case ISwitchExpressionArmOperation switchArm:
+                        TrackPatternTypes(switchArm.Pattern);
+                        break;
+
+                    case IPatternCaseClauseOperation patternClause:
+                        TrackPatternTypes(patternClause.Pattern);
+                        break;
+
+                    case ILocalFunctionOperation localFunc:
+                        TrackType(localFunc.Symbol.ReturnType);
+                        foreach (IParameterSymbol lfParam in localFunc.Symbol.Parameters)
+                        {
+                            TrackType(lfParam.Type);
+                        }
+
+                        break;
+
+                    case IAnonymousFunctionOperation lambda:
+                        foreach (IParameterSymbol lambdaParam in lambda.Symbol.Parameters)
+                        {
+                            TrackType(lambdaParam.Type);
+                        }
+
+                        break;
+
+                    case ISizeOfOperation sizeOfOp:
+                        TrackType(sizeOfOp.TypeOperand);
+                        break;
                 }
             },
             OperationKind.Invocation,
@@ -428,7 +467,20 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             OperationKind.Conversion,
             OperationKind.IsType,
             OperationKind.IsPattern,
-            OperationKind.CatchClause);
+            OperationKind.CatchClause,
+            OperationKind.SwitchExpressionArm,
+            OperationKind.CaseClause,
+            OperationKind.LocalFunction,
+            OperationKind.AnonymousFunction,
+            OperationKind.SizeOf);
+
+        // Track nameof() and XML doc cref references via language-specific syntax actions.
+        // These require syntax-level analysis because nameof is lowered to a string literal
+        // and crefs live in documentation trivia — neither surfaces through IOperation.
+        if (compilation.Language == LanguageNames.CSharp)
+        {
+            RegisterCSharpSyntaxTracking(context, TrackAssembly, TrackType);
+        }
 
         context.RegisterCompilationEndAction(endContext =>
         {
@@ -575,6 +627,72 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, packageName));
             }
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  Language-specific syntax tracking (nameof, crefs)
+    // ──────────────────────────────────────────────────────────────────────
+
+    // Separate methods per language to avoid JIT-loading the wrong language assembly.
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void RegisterCSharpSyntaxTracking(
+        CompilationStartAnalysisContext context,
+        Action<IAssemblySymbol?> trackAssembly,
+        Action<ITypeSymbol?> trackType)
+    {
+        // nameof() — appears as InvocationExpression at the syntax level but is
+        // lowered to a string literal in the IOperation tree.
+        context.RegisterSyntaxNodeAction(ctx =>
+        {
+            if (ctx.Node is CSharp.Syntax.InvocationExpressionSyntax invocation
+                && invocation.Expression is CSharp.Syntax.IdentifierNameSyntax id
+                && id.Identifier.Text == "nameof"
+                && invocation.ArgumentList.Arguments.Count > 0)
+            {
+                // Verify it is actually the nameof operator, not a method called "nameof".
+                SymbolInfo invocationInfo = ctx.SemanticModel.GetSymbolInfo(invocation, ctx.CancellationToken);
+                if (invocationInfo.Symbol is IMethodSymbol)
+                {
+                    return;
+                }
+
+                SymbolInfo argInfo = ctx.SemanticModel.GetSymbolInfo(invocation.ArgumentList.Arguments[0].Expression, ctx.CancellationToken);
+                ISymbol? symbol = argInfo.Symbol ?? argInfo.CandidateSymbols.FirstOrDefault();
+                if (symbol is ITypeSymbol typeSymbol)
+                {
+                    trackType(typeSymbol);
+                }
+                else if (symbol != null)
+                {
+                    trackAssembly(symbol.ContainingAssembly);
+                }
+            }
+        }, CSharp.SyntaxKind.InvocationExpression);
+
+        // XML doc <cref> — only relevant when documentation generation is enabled,
+        // matching the behavior of GetUsedAssemblyReferences() in the legacy path.
+        context.RegisterSyntaxNodeAction(ctx =>
+        {
+            if (ctx.SemanticModel.SyntaxTree.Options.DocumentationMode == DocumentationMode.None)
+            {
+                return;
+            }
+
+            if (ctx.Node is CSharp.Syntax.XmlCrefAttributeSyntax cref)
+            {
+                SymbolInfo symbolInfo = ctx.SemanticModel.GetSymbolInfo(cref.Cref, ctx.CancellationToken);
+                ISymbol? symbol = symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault();
+                if (symbol is ITypeSymbol typeSymbol)
+                {
+                    trackType(typeSymbol);
+                }
+                else if (symbol != null)
+                {
+                    trackAssembly(symbol.ContainingAssembly);
+                }
+            }
+        }, CSharp.SyntaxKind.XmlCrefAttribute);
     }
 
     // ──────────────────────────────────────────────────────────────────────
