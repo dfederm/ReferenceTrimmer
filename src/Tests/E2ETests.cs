@@ -65,6 +65,42 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UsedProjectReferenceSwitchPattern(bool useSymbolAnalysis)
+    {
+        // Dependency type used only in switch expression type pattern and switch case clause pattern.
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
+    }
+
+    [TestMethod]
+    public Task UsedProjectReferenceNameof()
+    {
+        // Dependency type used only in nameof(). nameof is lowered to a string literal
+        // in IOperation, so only the syntax-level handler catches it. Symbol-analysis only.
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            useSymbolAnalysis: true);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public Task UsedProjectReferenceCref(bool useSymbolAnalysis)
+    {
+        // Dependency type used only in XML doc <see cref="..."/>.
+        // Both legacy (GetUsedAssemblyReferences with doc mode on) and symbol-based paths handle this.
+        return RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            useSymbolAnalysis: useSymbolAnalysis);
+    }
+
+    [TestMethod]
     [DataRow(true, false)]
     [DataRow(false, false)]
     [DataRow(true, true)]
