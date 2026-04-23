@@ -214,7 +214,7 @@ public sealed class E2ETests
     {
         // Library directly references TransitiveDependency but doesn't use it.
         // Dependency uses TransitiveDependency. Symbol-based analysis is required to
-        // reliably detect this as unused — the legacy approach may or may not depending
+        // reliably detect this as unused — the default approach may or may not depending
         // on whether reference assemblies strip the transitive metadata.
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
@@ -436,8 +436,8 @@ public sealed class E2ETests
     [DataRow(true)]
     public Task UnusedPackageReferenceDocDisabled(bool useSymbolAnalysis)
     {
-        // Legacy: RT0000 fires (doc generation disabled warning); the unused package is not detected
-        //         because GetUsedAssemblyReferences is less accurate without doc generation.
+        // Default: RT0000 fires (doc generation disabled warning); the unused package is not detected
+        //          because GetUsedAssemblyReferences is less accurate without doc generation.
         // Symbol analysis: RT0003 fires (unused package correctly detected regardless of doc mode).
         return RunMSBuildAsync(
             projectFile: "Library/Library.csproj",

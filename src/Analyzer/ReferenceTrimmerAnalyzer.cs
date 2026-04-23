@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
@@ -57,6 +58,11 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    private static readonly StringComparer PathComparer =
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
     /// <summary>
     /// The supported diagnostics.
     /// </summary>
@@ -103,19 +109,19 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
         else
         {
-            context.RegisterCompilationEndAction(endContext => RunLegacyAnalysis(endContext, declaredReferencesFile));
+            context.RegisterCompilationEndAction(endContext => RunDefaultAnalysis(endContext, declaredReferencesFile));
         }
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    //  Legacy analysis path (GetUsedAssemblyReferences)
+    //  Default analysis path (GetUsedAssemblyReferences)
     // ──────────────────────────────────────────────────────────────────────
 
-    private static void RunLegacyAnalysis(CompilationAnalysisContext context, AdditionalText declaredReferencesFile)
+    private static void RunDefaultAnalysis(CompilationAnalysisContext context, AdditionalText declaredReferencesFile)
     {
         try
         {
-            RunLegacyAnalysisCore(context, declaredReferencesFile);
+            RunDefaultAnalysisCore(context, declaredReferencesFile);
         }
         catch (OperationCanceledException)
         {
@@ -127,7 +133,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void RunLegacyAnalysisCore(CompilationAnalysisContext context, AdditionalText declaredReferencesFile)
+    private static void RunDefaultAnalysisCore(CompilationAnalysisContext context, AdditionalText declaredReferencesFile)
     {
         SourceText? sourceText = declaredReferencesFile.GetText(context.CancellationToken);
         if (sourceText == null)
@@ -141,7 +147,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(RT0000Descriptor, Location.None));
         }
 
-        HashSet<string> usedReferences = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> usedReferences = new(PathComparer);
         foreach (MetadataReference metadataReference in compilation.GetUsedAssemblyReferences())
         {
             if (metadataReference.Display != null)
@@ -165,7 +171,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         // Build mappings from reference assembly identities to their metadata reference display paths.
         // These are used both for symbol tracking and for the transitive closure computation.
         var assemblyToPath = new Dictionary<AssemblyIdentity, string>();
-        var pathToAssembly = new Dictionary<string, IAssemblySymbol>(StringComparer.OrdinalIgnoreCase);
+        var pathToAssembly = new Dictionary<string, IAssemblySymbol>(PathComparer);
         foreach (MetadataReference reference in compilation.References)
         {
             if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol asm && reference.Display != null)
@@ -183,19 +189,30 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
 
         int totalReferenceCount = assemblyToPath.Count;
-        var usedReferencePaths = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+        var usedReferencePaths = new ConcurrentDictionary<string, byte>(PathComparer);
+        // Flag avoids the cost of ConcurrentDictionary.Count (which acquires all stripe
+        // locks on .NET Framework) on every callback invocation. Monotonic 0→1 transition;
+        // a briefly stale read just means a few extra no-op dictionary lookups.
+        int allTracked = 0;
 
         void TrackAssembly(IAssemblySymbol? assembly)
         {
-            // Fast exit: if all reference assemblies are already tracked, skip the lookup.
-            if (usedReferencePaths.Count >= totalReferenceCount)
+            if (allTracked != 0)
             {
                 return;
             }
 
-            if (assembly != null && assemblyToPath.TryGetValue(assembly.Identity, out string? path))
+            // Skip the compilation's own assembly — it's never an external reference.
+            if (assembly == null || ReferenceEquals(assembly, compilation.Assembly))
             {
-                usedReferencePaths.TryAdd(path, 0);
+                return;
+            }
+
+            if (assemblyToPath.TryGetValue(assembly.Identity, out string? path)
+                && usedReferencePaths.TryAdd(path, 0)
+                && usedReferencePaths.Count >= totalReferenceCount)
+            {
+                allTracked = 1;
             }
         }
 
@@ -203,7 +220,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         {
             while (type != null)
             {
-                if (usedReferencePaths.Count >= totalReferenceCount)
+                if (allTracked != 0)
                 {
                     return;
                 }
@@ -413,6 +430,23 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
                     case IConversionOperation conversion:
                         TrackAssembly(conversion.OperatorMethod?.ContainingAssembly);
+                        TrackType(conversion.Operand.Type);
+                        break;
+
+                    case IBinaryOperation binary:
+                        TrackAssembly(binary.OperatorMethod?.ContainingAssembly);
+                        break;
+
+                    case IUnaryOperation unary:
+                        TrackAssembly(unary.OperatorMethod?.ContainingAssembly);
+                        break;
+
+                    case ICompoundAssignmentOperation compound:
+                        TrackAssembly(compound.OperatorMethod?.ContainingAssembly);
+                        break;
+
+                    case IIncrementOrDecrementOperation incDec:
+                        TrackAssembly(incDec.OperatorMethod?.ContainingAssembly);
                         break;
 
                     case IIsTypeOperation isTypeOp:
@@ -421,6 +455,40 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
                     case IIsPatternOperation isPatternOp:
                         TrackPatternTypes(isPatternOp.Pattern);
+                        break;
+
+                    case ISwitchOperation switchOp:
+                        foreach (ISwitchCaseOperation caseOp in switchOp.Cases)
+                        {
+                            foreach (ICaseClauseOperation clause in caseOp.Clauses)
+                            {
+                                if (clause is IPatternCaseClauseOperation patternClause)
+                                {
+                                    TrackPatternTypes(patternClause.Pattern);
+                                }
+                            }
+                        }
+
+                        break;
+
+                    case ISwitchExpressionOperation switchExpr:
+                        foreach (ISwitchExpressionArmOperation arm in switchExpr.Arms)
+                        {
+                            TrackPatternTypes(arm.Pattern);
+                        }
+
+                        break;
+
+                    case ITypePatternOperation typePattern:
+                        TrackType(typePattern.MatchedType);
+                        break;
+
+                    case IDeclarationPatternOperation declPattern:
+                        TrackType(declPattern.MatchedType);
+                        break;
+
+                    case IRecursivePatternOperation recursivePattern:
+                        TrackType(recursivePattern.MatchedType);
                         break;
 
                     case ICatchClauseOperation catchClause:
@@ -464,9 +532,20 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             OperationKind.EventReference,
             OperationKind.MethodReference,
             OperationKind.TypeOf,
+            OperationKind.DefaultValue,
             OperationKind.Conversion,
+            OperationKind.Binary,
+            OperationKind.Unary,
+            OperationKind.CompoundAssignment,
+            OperationKind.Increment,
+            OperationKind.Decrement,
             OperationKind.IsType,
             OperationKind.IsPattern,
+            OperationKind.Switch,
+            OperationKind.SwitchExpression,
+            OperationKind.TypePattern,
+            OperationKind.DeclarationPattern,
+            OperationKind.RecursivePattern,
             OperationKind.CatchClause,
             OperationKind.SwitchExpressionArm,
             OperationKind.CaseClause,
@@ -520,7 +599,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     }
                 }
 
-                HashSet<string> usedReferences = new(usedReferencePaths.Keys, StringComparer.OrdinalIgnoreCase);
+                HashSet<string> usedReferences = new(usedReferencePaths.Keys, PathComparer);
 
                 // For bare Reference items (RT0001), we always need a conservative "transitively used" set
                 // because bare References control copy-to-output behavior directly and have no transitive
@@ -567,7 +646,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 .TryGetValue("build_property.EnableReferenceTrimmerDiagnostics", out string? enableDiagnostics)
             && string.Equals(enableDiagnostics, "true", StringComparison.OrdinalIgnoreCase))
         {
-            HashSet<string> unusedReferences = new(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> unusedReferences = new(PathComparer);
             foreach (MetadataReference metadataReference in compilation.References)
             {
                 if (metadataReference.Display != null && !usedReferences.Contains(metadataReference.Display))
@@ -579,7 +658,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             DumpReferencesInfo(usedReferences, unusedReferences, declaredReferencesFile.Path);
         }
 
-        Dictionary<string, List<string>> packageAssembliesDict = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<string>> packageAssembliesDict = new(PathComparer);
         foreach (DeclaredReference declaredReference in ReadDeclaredReferences(sourceText))
         {
             switch (declaredReference.Kind)
@@ -717,7 +796,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         Dictionary<string, IAssemblySymbol> pathToAssembly,
         HashSet<string> usedReferences)
     {
-        HashSet<string> transitivelyUsed = new(usedReferences, StringComparer.OrdinalIgnoreCase);
+        HashSet<string> transitivelyUsed = new(usedReferences, PathComparer);
         Queue<string> queue = new(usedReferences);
         while (queue.Count > 0)
         {
