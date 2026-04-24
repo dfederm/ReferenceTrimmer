@@ -190,14 +190,13 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
         int totalReferenceCount = assemblyToPath.Count;
         var usedReferencePaths = new ConcurrentDictionary<string, byte>(PathComparer);
-        // Flag avoids the cost of ConcurrentDictionary.Count (which acquires all stripe
-        // locks on .NET Framework) on every callback invocation. Monotonic 0→1 transition;
-        // a briefly stale read just means a few extra no-op dictionary lookups.
-        int allTracked = 0;
+        // Monotonically increasing counter. Once it reaches totalReferenceCount, all
+        // callbacks short-circuit. A briefly stale read just means a few extra no-op lookups.
+        int trackedCount = 0;
 
         void TrackAssembly(IAssemblySymbol? assembly)
         {
-            if (allTracked != 0)
+            if (trackedCount >= totalReferenceCount)
             {
                 return;
             }
@@ -209,10 +208,9 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
 
             if (assemblyToPath.TryGetValue(assembly.Identity, out string? path)
-                && usedReferencePaths.TryAdd(path, 0)
-                && usedReferencePaths.Count >= totalReferenceCount)
+                && usedReferencePaths.TryAdd(path, 0))
             {
-                allTracked = 1;
+                Interlocked.Increment(ref trackedCount);
             }
         }
 
@@ -220,7 +218,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         {
             while (type != null)
             {
-                if (allTracked != 0)
+                if (trackedCount >= totalReferenceCount)
                 {
                     return;
                 }
@@ -520,6 +518,10 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
                         break;
 
+                    case IVariableDeclaratorOperation varDecl:
+                        TrackType(varDecl.Symbol.Type);
+                        break;
+
                     case ISizeOfOperation sizeOfOp:
                         TrackType(sizeOfOp.TypeOperand);
                         break;
@@ -551,7 +553,8 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             OperationKind.CaseClause,
             OperationKind.LocalFunction,
             OperationKind.AnonymousFunction,
-            OperationKind.SizeOf);
+            OperationKind.SizeOf,
+            OperationKind.VariableDeclarator);
 
         // Track nameof() and XML doc cref references via language-specific syntax actions.
         // These require syntax-level analysis because nameof is lowered to a string literal
