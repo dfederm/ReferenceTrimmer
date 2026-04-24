@@ -7,11 +7,15 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);TestData/**;TestResults/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Analyzer\ReferenceTrimmer.Analyzer.csproj" />
     <ProjectReference Include="..\Package\ReferenceTrimmer.Package.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Targets>Build;Pack</Targets>
     </ProjectReference>
     <ProjectReference Include="..\Loggers\ReferenceTrimmer.Loggers.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="3.10" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="TestData\**">

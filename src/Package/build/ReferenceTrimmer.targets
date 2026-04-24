@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="EnableReferenceTrimmerDiagnostics"/>
+    <CompilerVisibleProperty Include="ReferenceTrimmerUseSymbolAnalysis"/>
   </ItemGroup>
 
   <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences" Condition="'$(EnableReferenceTrimmer)' != 'false'">

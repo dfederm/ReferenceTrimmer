@@ -1,7 +1,9 @@
 <Project>
 
   <PropertyGroup>
-    <!-- Per https://github.com/dotnet/roslyn/issues/66188 /doc param is required for accurate results -->
+    <!-- Documentation generation is generally recommended for build correctness
+         (e.g. IDE0005 for unused usings) but is not required by ReferenceTrimmer's
+         symbol-based usage detection. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
 
