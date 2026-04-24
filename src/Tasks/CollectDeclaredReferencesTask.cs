@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using NuGet.Common;
@@ -29,9 +28,6 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     [Required]
     public string? OutputFile { get; set; }
-
-    [Required]
-    public string? MSBuildProjectFile { get; set; }
 
     public ITaskItem[]? References { get; set; }
 
@@ -482,11 +478,11 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
     {
         const char fieldDelimiter = '\t';
 
-        StringBuilder writer = new();
+        using StreamWriter writer = new(filePath);
         foreach (DeclaredReference reference in declaredReferences)
         {
-            writer.Append(reference.AssemblyPath);
-            writer.Append(fieldDelimiter);
+            writer.Write(reference.AssemblyPath);
+            writer.Write(fieldDelimiter);
             string kindString = reference.Kind switch
             {
                 DeclaredReferenceKind.Reference => nameof(DeclaredReferenceKind.Reference),
@@ -494,23 +490,10 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 DeclaredReferenceKind.PackageReference => nameof(DeclaredReferenceKind.PackageReference),
                 _ => throw new InvalidDataException($"Unknown reference kind '{reference.Kind}'."),
             };
-            writer.Append(kindString);
-            writer.Append(fieldDelimiter);
-            writer.Append(reference.Spec);
-            writer.AppendLine();
+            writer.Write(kindString);
+            writer.Write(fieldDelimiter);
+            writer.WriteLine(reference.Spec);
         }
-
-        string newContent = writer.ToString();
-        if (File.Exists(filePath))
-        {
-            string existing = File.ReadAllText(filePath);
-            if (string.Equals(existing, newContent, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-        }
-
-        File.WriteAllText(filePath, newContent);
     }
 
     private sealed class PackageInfoBuilder

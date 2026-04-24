@@ -3,18 +3,22 @@
   <UsingTask TaskName="CollectDeclaredReferencesTask" AssemblyFile="$(ReferenceTrimmerTasksAssembly)" />
 
   <PropertyGroup>
-    <CoreCompileDependsOn Condition="'$(EnableReferenceTrimmer)' != 'false'">$(CoreCompileDependsOn);CollectDeclaredReferences</CoreCompileDependsOn>
+    <CoreCompileDependsOn Condition="'$(EnableReferenceTrimmer)' != 'false'">$(CoreCompileDependsOn);_StabilizeCollectDeclaredReferences</CoreCompileDependsOn>
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="EnableReferenceTrimmerDiagnostics"/>
     <CompilerVisibleProperty Include="ReferenceTrimmerUseSymbolAnalysis"/>
   </ItemGroup>
 
-  <Target Name="CollectDeclaredReferences" DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences" Condition="'$(EnableReferenceTrimmer)' != 'false'">
+  <Target Name="_PrepareCollectDeclaredReferences"
+          DependsOnTargets="ResolveAssemblyReferences;PrepareProjectReferences"
+          Condition="'$(EnableReferenceTrimmer)' != 'false'">
     <PropertyGroup>
-      <_ReferenceTrimmerDeclaredReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_DeclaredReferences.tsv'))</_ReferenceTrimmerDeclaredReferencesFile>
+      <_ReferenceTrimmerDeclaredReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_DeclaredReferences.raw.tsv'))</_ReferenceTrimmerDeclaredReferencesFile>
       <_ReferenceTrimmerUsedReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_UsedReferences.log'))</_ReferenceTrimmerUsedReferencesFile>
       <_ReferenceTrimmerUnusedReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_UnusedReferences.log'))</_ReferenceTrimmerUnusedReferencesFile>
+      <_ReferenceTrimmerCollectInputsCacheFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_CollectDeclaredReferences.cache'))</_ReferenceTrimmerCollectInputsCacheFile>
+      <_ReferenceTrimmerStableDeclaredReferencesFile>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)_ReferenceTrimmer_DeclaredReferences.tsv'))</_ReferenceTrimmerStableDeclaredReferencesFile>
     </PropertyGroup>
     <ItemGroup>
       <!--
@@ -27,11 +31,50 @@
       <_ReferenceTrimmerResolvedReferences Include="@(ReferencePathWithRefAssemblies)" Condition="'%(ReferencePathWithRefAssemblies.ReferenceSourceTarget)' == 'ResolveAssemblyReference'"/>
 
       <_ReferenceTrimmerProjectReferences Include="@(ReferencePathWithRefAssemblies)" Condition="'%(ReferencePathWithRefAssemblies.ReferenceSourceTarget)' == 'ProjectReference'" />
+
+      <!-- Hash non-file inputs so changes to item groups and properties are detected -->
+      <_CollectDeclaredReferencesHashInputs Include="@(_ReferenceTrimmerReferences -> 'REF=%(Identity)')" />
+      <_CollectDeclaredReferencesHashInputs Include="@(PackageReference -> 'PKG=%(Identity)')" />
+      <_CollectDeclaredReferencesHashInputs Include="@(ReferenceTrimmerIgnorePackageBuildFiles -> 'IGN=%(Identity)')" />
+      <_CollectDeclaredReferencesHashInputs Include="TFM=$(ReferringTargetFrameworkForProjectReferences)" />
+      <_CollectDeclaredReferencesHashInputs Include="TPM=$(TargetPlatformMoniker)" />
+      <_CollectDeclaredReferencesHashInputs Include="RID=$(RuntimeIdentifier)" />
+      <_CollectDeclaredReferencesHashInputs Include="NPR=$(NuGetPackageRoot)" />
     </ItemGroup>
 
+    <Hash ItemsToHash="@(_CollectDeclaredReferencesHashInputs)">
+      <Output TaskParameter="HashResult" PropertyName="_CollectDeclaredReferencesHash" />
+    </Hash>
+
+    <WriteLinesToFile
+      Lines="$(_CollectDeclaredReferencesHash)"
+      File="$(_ReferenceTrimmerCollectInputsCacheFile)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true" />
+
+    <ItemGroup>
+      <!-- File-based inputs -->
+      <_CollectDeclaredReferencesInputs Include="$(ProjectAssetsFile)" Condition="Exists('$(ProjectAssetsFile)')" />
+      <_CollectDeclaredReferencesInputs Include="@(_ReferenceTrimmerResolvedReferences)" />
+      <_CollectDeclaredReferencesInputs Include="@(_ReferenceTrimmerProjectReferences)" />
+      <!-- Cache file captures non-file inputs (item groups, properties) -->
+      <_CollectDeclaredReferencesInputs Include="$(_ReferenceTrimmerCollectInputsCacheFile)" />
+
+      <!-- https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Using%20Additional%20Files.md#in-a-project-file -->
+      <AdditionalFiles Include="$(_ReferenceTrimmerStableDeclaredReferencesFile)" />
+      <FileWrites Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
+      <FileWrites Include="$(_ReferenceTrimmerStableDeclaredReferencesFile)" />
+      <FileWrites Include="$(_ReferenceTrimmerCollectInputsCacheFile)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CollectDeclaredReferences"
+          DependsOnTargets="_PrepareCollectDeclaredReferences"
+          Condition="'$(EnableReferenceTrimmer)' != 'false'"
+          Inputs="@(_CollectDeclaredReferencesInputs)"
+          Outputs="$(_ReferenceTrimmerDeclaredReferencesFile)">
     <CollectDeclaredReferencesTask
       OutputFile="$(_ReferenceTrimmerDeclaredReferencesFile)"
-      MSBuildProjectFile="$(MSBuildProjectFile)"
       References="@(_ReferenceTrimmerReferences)"
       ResolvedReferences="@(_ReferenceTrimmerResolvedReferences)"
       ProjectReferences="@(_ReferenceTrimmerProjectReferences)"
@@ -44,23 +87,42 @@
       TargetFrameworkDirectories="$(TargetFrameworkDirectory)"
       IgnorePackageBuildFiles="@(ReferenceTrimmerIgnorePackageBuildFiles)"
       NuGetPackageRoot="$(NuGetPackageRoot)" />
+  </Target>
 
-    <ItemGroup>
-      <!-- https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Using%20Additional%20Files.md#in-a-project-file -->
-      <AdditionalFiles Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
-      <EmbedInBinlog Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
-      <FileWrites Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
-    </ItemGroup>
+  <!--
+    Stabilize the declared references file for the compiler. The raw .tsv is written
+    by CollectDeclaredReferences whenever it runs, but we don't want its timestamp
+    changes to trigger a CoreCompile re-run when content hasn't changed.
+    WriteOnlyWhenDifferent ensures the stable file's timestamp only changes when
+    content actually differs.
+  -->
+  <Target Name="_StabilizeCollectDeclaredReferences"
+          DependsOnTargets="CollectDeclaredReferences"
+          Condition="'$(EnableReferenceTrimmer)' != 'false'"
+          Inputs="$(_ReferenceTrimmerDeclaredReferencesFile)"
+          Outputs="$(_ReferenceTrimmerStableDeclaredReferencesFile)">
+    <ReadLinesFromFile File="$(_ReferenceTrimmerDeclaredReferencesFile)">
+      <Output TaskParameter="Lines" ItemName="_ReferenceTrimmerDeclaredReferencesLines" />
+    </ReadLinesFromFile>
+
+    <WriteLinesToFile
+      Lines="@(_ReferenceTrimmerDeclaredReferencesLines)"
+      File="$(_ReferenceTrimmerStableDeclaredReferencesFile)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true" />
   </Target>
 
   <Target Name="_EmbedReferenceTrimmerDiagnosticsInBinlog"
           AfterTargets="CoreCompile"
-          Condition="'$(EnableReferenceTrimmer)' != 'false' and '$(EnableReferenceTrimmerDiagnostics)' == 'true'">
-    <ItemGroup Condition="Exists('$(_ReferenceTrimmerUsedReferencesFile)')">
+          Condition="'$(EnableReferenceTrimmer)' != 'false'">
+    <ItemGroup Condition="Exists('$(_ReferenceTrimmerDeclaredReferencesFile)')">
+      <EmbedInBinlog Include="$(_ReferenceTrimmerDeclaredReferencesFile)" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(EnableReferenceTrimmerDiagnostics)' == 'true' and Exists('$(_ReferenceTrimmerUsedReferencesFile)')">
       <EmbedInBinlog Include="$(_ReferenceTrimmerUsedReferencesFile)" />
       <FileWrites Include="$(_ReferenceTrimmerUsedReferencesFile)" />
     </ItemGroup>
-    <ItemGroup Condition="Exists('$(_ReferenceTrimmerUnusedReferencesFile)')">
+    <ItemGroup Condition="'$(EnableReferenceTrimmerDiagnostics)' == 'true' and Exists('$(_ReferenceTrimmerUnusedReferencesFile)')">
       <EmbedInBinlog Include="$(_ReferenceTrimmerUnusedReferencesFile)" />
       <FileWrites Include="$(_ReferenceTrimmerUnusedReferencesFile)" />
     </ItemGroup>
