@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Analyzer\ReferenceTrimmer.Analyzer.csproj" />
+    <ProjectReference Include="..\Tasks\ReferenceTrimmer.Tasks.csproj" />
     <ProjectReference Include="..\Package\ReferenceTrimmer.Package.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Targets>Build;Pack</Targets>

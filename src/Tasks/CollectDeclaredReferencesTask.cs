@@ -109,8 +109,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     }
                     else
                     {
-                        var resolvedReference = ResolvedReferences.SingleOrDefault(rr => string.Equals(rr.GetMetadata("OriginalItemSpec"), referenceSpec, StringComparison.OrdinalIgnoreCase));
-                        referencePath = resolvedReference is null ? null : resolvedReference.ItemSpec;
+                        var resolvedReference = ResolvedReferences?.SingleOrDefault(rr => string.Equals(rr.GetMetadata("OriginalItemSpec"), referenceSpec, StringComparison.OrdinalIgnoreCase));
+                        referencePath = resolvedReference?.ItemSpec;
                     }
 
                     // If the reference is under the nuget package root, it's likely a Reference added in a package's props or targets.
@@ -225,7 +225,18 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         var packageInfoBuilders = new Dictionary<string, PackageInfoBuilder>(StringComparer.OrdinalIgnoreCase);
 
         Log.LogMessage(MessageImportance.Low, "Loading lock file from '{0}'", ProjectAssetsFile);
-        var lockFile = LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
+        var lockFile = string.IsNullOrEmpty(ProjectAssetsFile)
+            ? null
+            : LockFileUtilities.GetLockFile(ProjectAssetsFile, NullLogger.Instance);
+        if (lockFile is null)
+        {
+            // ProjectAssetsFile may be null/missing for projects that don't use NuGet restore (e.g., legacy or non-SDK projects
+            // that nevertheless have items in @(PackageReference)). Without a lock file we can't resolve package contents, so
+            // skip package processing rather than NRE on the null lockFile below.
+            Log.LogMessage(MessageImportance.Low, "Lock file '{0}' is null or could not be loaded; skipping PackageReference processing", ProjectAssetsFile);
+            return new Dictionary<string, PackageInfo>(StringComparer.OrdinalIgnoreCase);
+        }
+
         var packageFolders = lockFile.PackageFolders.Select(item => item.Path).ToList();
         Log.LogMessage(MessageImportance.Low, "Package folders: {0}", string.Join("; ", packageFolders));
 
