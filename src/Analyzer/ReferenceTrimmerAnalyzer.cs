@@ -333,6 +333,25 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                             TrackAttribute(attr);
                         }
 
+                        // For delegates, the parameter and return types live on the implicitly-declared
+                        // Invoke method, which the SymbolKind.Method action does not fire for. Walk them here.
+                        // Mirrors the IMethodSymbol case below (return type, parameter types, return-type
+                        // attributes); type-parameter constraints are already covered above for the delegate
+                        // type itself, and parameter attributes are not tracked for ordinary methods either.
+                        if (namedType.TypeKind == TypeKind.Delegate && namedType.DelegateInvokeMethod is IMethodSymbol invoke)
+                        {
+                            TrackType(invoke.ReturnType);
+                            foreach (IParameterSymbol param in invoke.Parameters)
+                            {
+                                TrackType(param.Type);
+                            }
+
+                            foreach (AttributeData attr in invoke.GetReturnTypeAttributes())
+                            {
+                                TrackAttribute(attr);
+                            }
+                        }
+
                         break;
 
                     case IMethodSymbol method:

@@ -489,6 +489,66 @@ public sealed class AnalyzerTests
     }
 
     [TestMethod]
+    public async Task UsedViaDelegateParameterType()
+    {
+        // The external type is referenced only via a delegate's parameter type.
+        // The delegate's Invoke method is implicitly declared, so a SymbolKind.Method
+        // action does not fire for it — the analyzer must track parameters/return type
+        // through the INamedTypeSymbol with TypeKind.Delegate.
+        var dep = EmitDependency("namespace Dep { public class Service {} }");
+        var diagnostics = await RunAnalyzerAsync(
+            "public delegate void Configure(Dep.Service s);",
+            dep);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaDelegateReturnType()
+    {
+        // The external type is referenced only via a delegate's return type.
+        var dep = EmitDependency("namespace Dep { public class Result {} }");
+        var diagnostics = await RunAnalyzerAsync(
+            "public delegate Dep.Result Produce();",
+            dep);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaDelegateGenericReturnType()
+    {
+        // The external type is referenced only via a generic argument in the delegate's return type.
+        var dep = EmitDependency("namespace Dep { public class Item {} }");
+        var diagnostics = await RunAnalyzerAsync(
+            "public delegate System.Collections.Generic.List<Dep.Item> ProduceItems();",
+            dep);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaDelegateTypeParameterConstraint()
+    {
+        // External type referenced only via a type parameter constraint on a generic delegate.
+        var dep = EmitDependency("namespace Dep { public class Base {} }");
+        var diagnostics = await RunAnalyzerAsync(
+            "public delegate void Apply<T>(T x) where T : Dep.Base;",
+            dep);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UnusedDelegateNoExternalTypesReportsDiagnostic()
+    {
+        // Negative test: a delegate using only same-assembly types should NOT mark
+        // an unrelated external assembly as used.
+        var dep = EmitDependency("namespace Dep { public class Service {} }");
+        var diagnostics = await RunAnalyzerAsync(
+            "public class Local {} public delegate Local Produce(Local x);",
+            dep);
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+    }
+
+    [TestMethod]
     public async Task UsedViaInheritedStaticMethod()
     {
         // The static method is *defined* on the base class in another assembly, but called
