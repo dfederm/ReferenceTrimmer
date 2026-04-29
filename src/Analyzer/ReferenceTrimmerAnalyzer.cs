@@ -752,6 +752,25 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
         }, CSharp.SyntaxKind.InvocationExpression);
 
+        // Type qualifier in member access (e.g., `Foo.StaticMethod()` or `Foo.NestedType`).
+        // For static method calls and static member references, the receiver type appears at
+        // the syntax level as a qualifier — it isn't represented in IOperation (Instance is
+        // null for static, and the operation tree only carries TargetMethod/Member which point
+        // to the *defining* assembly, not the qualifier's assembly). Without this, calls like
+        // `Derived.InheritedStaticMethod()` would only credit the base class's assembly and
+        // the derived class's assembly would be wrongly flagged as removable.
+        context.RegisterSyntaxNodeAction(ctx =>
+        {
+            if (ctx.Node is CSharp.Syntax.MemberAccessExpressionSyntax memberAccess)
+            {
+                SymbolInfo info = ctx.SemanticModel.GetSymbolInfo(memberAccess.Expression, ctx.CancellationToken);
+                if ((info.Symbol ?? info.CandidateSymbols.FirstOrDefault()) is ITypeSymbol typeSymbol)
+                {
+                    trackType(typeSymbol);
+                }
+            }
+        }, CSharp.SyntaxKind.SimpleMemberAccessExpression);
+
         // XML doc <cref> — only relevant when documentation generation is enabled,
         // matching the behavior of GetUsedAssemblyReferences() in the legacy path.
         context.RegisterSyntaxNodeAction(ctx =>

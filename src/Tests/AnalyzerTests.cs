@@ -488,6 +488,45 @@ public sealed class AnalyzerTests
         Assert.AreEqual("RT0001", diagnostics[0].Id);
     }
 
+    [TestMethod]
+    public async Task UsedViaInheritedStaticMethod()
+    {
+        // The static method is *defined* on the base class in another assembly, but called
+        // through the derived class. Without tracking the type qualifier in the member access
+        // syntax, only the base assembly would be credited and the derived assembly would be
+        // wrongly flagged as unused.
+        var baseAsm = EmitDependency(
+            "namespace Dep { public class Base { public static void Foo() {} } }",
+            assemblyName: "BaseAsm");
+        var derivedAsm = EmitDependency(
+            "namespace Dep { public class Derived : Base { } }",
+            assemblyName: "DerivedAsm",
+            additionalReferences: [baseAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { void M() { Dep.Derived.Foo(); } }",
+            [(baseAsm.Reference, baseAsm.Path, "ProjectReference", "../Base/Base.csproj"),
+             (derivedAsm.Reference, derivedAsm.Path, "ProjectReference", "../Derived/Derived.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaInheritedStaticField()
+    {
+        // Static field defined on base, accessed via the derived type.
+        var baseAsm = EmitDependency(
+            "namespace Dep { public class Base { public static int Counter; } }",
+            assemblyName: "BaseAsm");
+        var derivedAsm = EmitDependency(
+            "namespace Dep { public class Derived : Base { } }",
+            assemblyName: "DerivedAsm",
+            additionalReferences: [baseAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { int M() => Dep.Derived.Counter; }",
+            [(baseAsm.Reference, baseAsm.Path, "ProjectReference", "../Base/Base.csproj"),
+             (derivedAsm.Reference, derivedAsm.Path, "ProjectReference", "../Derived/Derived.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  Test infrastructure
     // ──────────────────────────────────────────────────────────────────────
@@ -507,12 +546,24 @@ public sealed class AnalyzerTests
     /// Compile dependency source into a DLL on disk and return the metadata reference + path.
     /// </summary>
     private static (MetadataReference Reference, string Path) EmitDependency(string source, string assemblyName = "Dependency")
+        => EmitDependency(source, assemblyName, additionalReferences: null);
+
+    private static (MetadataReference Reference, string Path) EmitDependency(
+        string source,
+        string assemblyName,
+        MetadataReference[]? additionalReferences)
     {
         var tree = CSharpSyntaxTree.ParseText(source);
+        var references = new List<MetadataReference> { CorlibRef };
+        if (additionalReferences != null)
+        {
+            references.AddRange(additionalReferences);
+        }
+
         var compilation = CSharpCompilation.Create(
             assemblyName,
             [tree],
-            [CorlibRef],
+            references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         string path = Path.Combine(Path.GetTempPath(), $"RT_Test_{assemblyName}_{Guid.NewGuid():N}.dll");
