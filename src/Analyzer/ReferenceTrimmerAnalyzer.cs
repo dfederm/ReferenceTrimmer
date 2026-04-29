@@ -307,6 +307,40 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
         }
 
+        // When a member is referenced via an `override`, the C# compiler validates the entire
+        // override chain at compile time, so any assembly along the chain must remain a reference.
+        // The IOperation only points at the override (the "near" symbol); without walking
+        // OverriddenMethod/Property/Event we miss assemblies that declare the original or any
+        // intermediate base member, producing false-positive RT0002 diagnostics whose removal
+        // results in CS0012 errors.
+        void TrackOverriddenChain(ISymbol? member)
+        {
+            switch (member)
+            {
+                case IMethodSymbol method:
+                    for (IMethodSymbol? overridden = method.OverriddenMethod; overridden != null; overridden = overridden.OverriddenMethod)
+                    {
+                        TrackAssembly(overridden.ContainingAssembly);
+                    }
+
+                    break;
+                case IPropertySymbol property:
+                    for (IPropertySymbol? overridden = property.OverriddenProperty; overridden != null; overridden = overridden.OverriddenProperty)
+                    {
+                        TrackAssembly(overridden.ContainingAssembly);
+                    }
+
+                    break;
+                case IEventSymbol evt:
+                    for (IEventSymbol? overridden = evt.OverriddenEvent; overridden != null; overridden = overridden.OverriddenEvent)
+                    {
+                        TrackAssembly(overridden.ContainingAssembly);
+                    }
+
+                    break;
+            }
+        }
+
         // Track declaration-level type references: base types, interfaces, member signatures, attributes.
         context.RegisterSymbolAction(
             ctx =>
@@ -426,6 +460,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 {
                     case IInvocationOperation invocation:
                         TrackAssembly(invocation.TargetMethod.ContainingAssembly);
+                        TrackOverriddenChain(invocation.TargetMethod);
                         foreach (ITypeSymbol typeArg in invocation.TargetMethod.TypeArguments)
                         {
                             TrackType(typeArg);
@@ -439,6 +474,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
                     case IMemberReferenceOperation memberRef:
                         TrackAssembly(memberRef.Member.ContainingAssembly);
+                        TrackOverriddenChain(memberRef.Member);
                         break;
 
                     case ITypeOfOperation typeOfOp:
