@@ -698,6 +698,163 @@ public sealed class AnalyzerTests
         StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Unrelated");
     }
 
+    [TestMethod]
+    public async Task UsedViaInheritedBaseType()
+    {
+        // The canonical issue #144 scenario: Consumer derives from a class in B, which itself
+        // derives from a class in A. With <DisableTransitiveProjectReferences>true</...>, A
+        // does not flow transitively from B → Consumer, so Consumer must reference A directly.
+        // Without walking the BaseType chain we'd flag A as removable, but removing it produces
+        // CS0012 because the C# compiler validates the entire base-type chain.
+        var aAsm = EmitDependency(
+            "namespace Dep { public class ProviderDependency { public int Counter; } }",
+            assemblyName: "AAsm");
+        var bAsm = EmitDependency(
+            "namespace Dep { public class Provider : ProviderDependency { } }",
+            assemblyName: "BAsm",
+            additionalReferences: [aAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer : Dep.Provider { }",
+            [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
+             (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaImplementedInterface()
+    {
+        // Interface chain: A defines IFoo, B defines a class Foo : IFoo, Consumer derives from Foo.
+        // Consumer's reference to A is required because the compiler validates that Foo's
+        // implemented interface is reachable. Without walking the interface chain we'd miss A.
+        var aAsm = EmitDependency(
+            "namespace Dep { public interface IFoo { } }",
+            assemblyName: "AAsm");
+        var bAsm = EmitDependency(
+            "namespace Dep { public class Foo : IFoo { } }",
+            assemblyName: "BAsm",
+            additionalReferences: [aAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer : Dep.Foo { }",
+            [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
+             (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaMultiLevelInheritanceChain()
+    {
+        // Three-level base-type chain: A ← B ← C. Consumer references C and uses it as a base
+        // class. Every assembly along the chain must be credited because the C# compiler
+        // validates the full inheritance chain (CS0012 fires on any missing link).
+        var aAsm = EmitDependency(
+            "namespace Dep { public class A { } }",
+            assemblyName: "AAsm");
+        var bAsm = EmitDependency(
+            "namespace Dep { public class B : A { } }",
+            assemblyName: "BAsm",
+            additionalReferences: [aAsm.Reference]);
+        var cAsm = EmitDependency(
+            "namespace Dep { public class C : B { } }",
+            assemblyName: "CAsm",
+            additionalReferences: [aAsm.Reference, bAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer : Dep.C { }",
+            [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
+             (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj"),
+             (cAsm.Reference, cAsm.Path, "ProjectReference", "../C/C.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaInheritanceChainOnVariableType()
+    {
+        // The chain must be walked even when the named type is encountered as a variable type
+        // (not as an explicit base in Consumer's own code). Declaring a parameter of type
+        // Dep.Provider still requires every assembly in Provider's inheritance chain.
+        var aAsm = EmitDependency(
+            "namespace Dep { public class ProviderDependency { } }",
+            assemblyName: "AAsm");
+        var bAsm = EmitDependency(
+            "namespace Dep { public class Provider : ProviderDependency { } }",
+            assemblyName: "BAsm",
+            additionalReferences: [aAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer { void M(Dep.Provider p) { } }",
+            [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
+             (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaMixedBaseAndInterfaceChain()
+    {
+        // Mixed scenario: B's class inherits from A's class and implements D's interface.
+        // Consumer derives from B's class. All four assemblies (A, B, D, and B itself via the
+        // direct base) must be credited.
+        var aAsm = EmitDependency(
+            "namespace Dep { public class BaseA { } }",
+            assemblyName: "AAsm");
+        var dAsm = EmitDependency(
+            "namespace Dep { public interface IFromD { } }",
+            assemblyName: "DAsm");
+        var bAsm = EmitDependency(
+            "namespace Dep { public class Provider : BaseA, IFromD { } }",
+            assemblyName: "BAsm",
+            additionalReferences: [aAsm.Reference, dAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer : Dep.Provider { }",
+            [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
+             (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj"),
+             (dAsm.Reference, dAsm.Path, "ProjectReference", "../D/D.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaGenericConstraintBaseChain()
+    {
+        // Generic constraint variant: T : Provider where Provider : ProviderDependency.
+        // Consumer's constraint forces the compiler to validate Provider's base chain, so A
+        // must remain a reference.
+        var aAsm = EmitDependency(
+            "namespace Dep { public class ProviderDependency { } }",
+            assemblyName: "AAsm");
+        var bAsm = EmitDependency(
+            "namespace Dep { public class Provider : ProviderDependency { } }",
+            assemblyName: "BAsm",
+            additionalReferences: [aAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer<T> where T : Dep.Provider { }",
+            [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
+             (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UnrelatedReferenceNotMarkedByInheritance()
+    {
+        // Negative test: deriving from a type whose inheritance chain spans two assemblies
+        // should not credit an entirely unrelated assembly. Only the assemblies along the
+        // chain are required.
+        var aAsm = EmitDependency(
+            "namespace Dep { public class ProviderDependency { } }",
+            assemblyName: "AAsm");
+        var bAsm = EmitDependency(
+            "namespace Dep { public class Provider : ProviderDependency { } }",
+            assemblyName: "BAsm",
+            additionalReferences: [aAsm.Reference]);
+        var unrelated = EmitDependency(
+            "namespace Other { public class Unused { } }",
+            assemblyName: "UnrelatedAsm");
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer : Dep.Provider { }",
+            [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
+             (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj"),
+             (unrelated.Reference, unrelated.Path, "ProjectReference", "../Unrelated/Unrelated.csproj")]);
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Unrelated");
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  Test infrastructure
     // ──────────────────────────────────────────────────────────────────────
