@@ -194,6 +194,16 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         // callbacks short-circuit. A briefly stale read just means a few extra no-op lookups.
         int trackedCount = 0;
 
+        // Tracks named types whose inheritance chain (base types + transitively-implemented
+        // interfaces) has already been walked, to break self-referential cycles such as
+        // `int` → `IComparable<int>` → typeArg `int` → ... and to avoid redundant work for
+        // types used many times. Use SymbolEqualityComparer to match Roslyn semantics for
+        // constructed generic types (e.g., distinct INamedTypeSymbol instances representing
+        // the same `List<int>` are considered equal).
+#pragma warning disable RS1024 // Compare symbols correctly (false positive: comparer is supplied explicitly)
+        var inheritanceWalked = new ConcurrentDictionary<ISymbol, byte>(SymbolEqualityComparer.Default);
+#pragma warning restore RS1024
+
         void TrackAssembly(IAssemblySymbol? assembly)
         {
             if (trackedCount >= totalReferenceCount)
@@ -246,6 +256,35 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                             foreach (ITypeSymbol typeArg in named.TypeArguments)
                             {
                                 TrackType(typeArg);
+                            }
+
+                            // When a named type is referenced, the C# compiler validates the entire
+                            // inheritance chain at type-check time -- CS0012 fires when *any* base
+                            // type or implemented interface is defined in an unreferenced assembly.
+                            // Walk BaseType (recursively) and AllInterfaces (transitively) so every
+                            // assembly along the chain is credited. AllInterfaces is broader than
+                            // Interfaces and mirrors what the compiler actually validates. The
+                            // visited-set guard breaks self-referential cycles (e.g. int ->
+                            // IComparable<int> -> typeArg int -> ...) and avoids redundant work.
+                            if (inheritanceWalked.TryAdd(named, 0))
+                            {
+                                for (INamedTypeSymbol? baseType = named.BaseType; baseType != null; baseType = baseType.BaseType)
+                                {
+                                    TrackAssembly(baseType.ContainingAssembly);
+                                    foreach (ITypeSymbol typeArg in baseType.TypeArguments)
+                                    {
+                                        TrackType(typeArg);
+                                    }
+                                }
+
+                                foreach (INamedTypeSymbol iface in named.AllInterfaces)
+                                {
+                                    TrackAssembly(iface.ContainingAssembly);
+                                    foreach (ITypeSymbol typeArg in iface.TypeArguments)
+                                    {
+                                        TrackType(typeArg);
+                                    }
+                                }
                             }
                         }
 
