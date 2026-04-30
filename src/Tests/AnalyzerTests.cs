@@ -587,6 +587,117 @@ public sealed class AnalyzerTests
         AssertNoDiagnostics(diagnostics);
     }
 
+    [TestMethod]
+    public async Task UsedViaOverridePropertyAccess()
+    {
+        // Property is *defined* abstract on the base in another assembly, overridden on the
+        // derived in a second assembly, and accessed via the derived type. Without walking
+        // OverriddenProperty, only the derived assembly is credited and the base assembly
+        // would be wrongly flagged removable — yet removing it produces CS0012 because the
+        // C# compiler validates the override chain.
+        var baseAsm = EmitDependency(
+            "namespace Dep { public abstract class Base { public abstract string SomeProperty { get; } } }",
+            assemblyName: "BaseAsm");
+        var derivedAsm = EmitDependency(
+            "namespace Dep { public class Derived : Base { public override string SomeProperty => \"value\"; } }",
+            assemblyName: "DerivedAsm",
+            additionalReferences: [baseAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { string M(Dep.Derived d) => d.SomeProperty; }",
+            [(baseAsm.Reference, baseAsm.Path, "ProjectReference", "../Base/Base.csproj"),
+             (derivedAsm.Reference, derivedAsm.Path, "ProjectReference", "../Derived/Derived.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaOverrideMethodCall()
+    {
+        // Method is *defined* abstract on the base in another assembly, overridden on the
+        // derived in a second assembly, and invoked via the derived type.
+        var baseAsm = EmitDependency(
+            "namespace Dep { public abstract class Base { public abstract void Run(); } }",
+            assemblyName: "BaseAsm");
+        var derivedAsm = EmitDependency(
+            "namespace Dep { public class Derived : Base { public override void Run() {} } }",
+            assemblyName: "DerivedAsm",
+            additionalReferences: [baseAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { void M(Dep.Derived d) => d.Run(); }",
+            [(baseAsm.Reference, baseAsm.Path, "ProjectReference", "../Base/Base.csproj"),
+             (derivedAsm.Reference, derivedAsm.Path, "ProjectReference", "../Derived/Derived.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaOverrideEventAccess()
+    {
+        // Event is *defined* abstract on the base in another assembly, overridden on the
+        // derived in a second assembly, and subscribed to via the derived type.
+        var baseAsm = EmitDependency(
+            "namespace Dep { public abstract class Base { public abstract event System.EventHandler Changed; } }",
+            assemblyName: "BaseAsm");
+        var derivedAsm = EmitDependency(
+            "namespace Dep { public class Derived : Base { public override event System.EventHandler Changed; } }",
+            assemblyName: "DerivedAsm",
+            additionalReferences: [baseAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { void M(Dep.Derived d, System.EventHandler h) => d.Changed += h; }",
+            [(baseAsm.Reference, baseAsm.Path, "ProjectReference", "../Base/Base.csproj"),
+             (derivedAsm.Reference, derivedAsm.Path, "ProjectReference", "../Derived/Derived.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaOverrideMultiLevelChain()
+    {
+        // Three-level override chain: A defines abstract, B overrides, C overrides again.
+        // Consumer accesses via C — every assembly in the chain must be credited because
+        // the C# compiler validates the full chain.
+        var aAsm = EmitDependency(
+            "namespace Dep { public abstract class A { public abstract string SomeProperty { get; } } }",
+            assemblyName: "AAsm");
+        var bAsm = EmitDependency(
+            "namespace Dep { public abstract class B : A { public override string SomeProperty => \"b\"; } }",
+            assemblyName: "BAsm",
+            additionalReferences: [aAsm.Reference]);
+        var cAsm = EmitDependency(
+            "namespace Dep { public class C : B { public override string SomeProperty => \"c\"; } }",
+            assemblyName: "CAsm",
+            additionalReferences: [aAsm.Reference, bAsm.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer { string M(Dep.C c) => c.SomeProperty; }",
+            [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
+             (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj"),
+             (cAsm.Reference, cAsm.Path, "ProjectReference", "../C/C.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UnrelatedReferenceNotMarkedByOverride()
+    {
+        // Negative test: accessing an overridden member on a derived type from one assembly
+        // should not credit an entirely unrelated external assembly. Only the assemblies on
+        // the override chain (and the qualifier's assembly) are required.
+        var baseAsm = EmitDependency(
+            "namespace Dep { public abstract class Base { public abstract string SomeProperty { get; } } }",
+            assemblyName: "BaseAsm");
+        var derivedAsm = EmitDependency(
+            "namespace Dep { public class Derived : Base { public override string SomeProperty => \"value\"; } }",
+            assemblyName: "DerivedAsm",
+            additionalReferences: [baseAsm.Reference]);
+        var unrelated = EmitDependency(
+            "namespace Other { public class Unused {} }",
+            assemblyName: "UnrelatedAsm");
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { string M(Dep.Derived d) => d.SomeProperty; }",
+            [(baseAsm.Reference, baseAsm.Path, "ProjectReference", "../Base/Base.csproj"),
+             (derivedAsm.Reference, derivedAsm.Path, "ProjectReference", "../Derived/Derived.csproj"),
+             (unrelated.Reference, unrelated.Path, "ProjectReference", "../Unrelated/Unrelated.csproj")]);
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Unrelated");
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  Test infrastructure
     // ──────────────────────────────────────────────────────────────────────
