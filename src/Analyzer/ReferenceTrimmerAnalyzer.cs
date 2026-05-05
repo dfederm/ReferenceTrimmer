@@ -202,6 +202,13 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         // the same `List<int>` are considered equal).
 #pragma warning disable RS1024 // Compare symbols correctly (false positive: comparer is supplied explicitly)
         var inheritanceWalked = new ConcurrentDictionary<ISymbol, byte>(SymbolEqualityComparer.Default);
+
+        // Tracks (type, memberName) pairs whose overload-sibling walk has already been
+        // performed, and (type) for whole-type indexer scans. Keyed by INamedTypeSymbol with
+        // SymbolEqualityComparer to dedup across distinct INamedTypeSymbol instances that
+        // refer to the same constructed type.
+        var memberLookupWalked = new ConcurrentDictionary<INamedTypeSymbol, ConcurrentDictionary<string, byte>>(SymbolEqualityComparer.Default);
+        var indexerLookupWalked = new ConcurrentDictionary<INamedTypeSymbol, byte>(SymbolEqualityComparer.Default);
 #pragma warning restore RS1024
 
         void TrackAssembly(IAssemblySymbol? assembly)
@@ -268,6 +275,16 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                             // IComparable<int> -> typeArg int -> ...) and avoids redundant work.
                             if (inheritanceWalked.TryAdd(named, 0))
                             {
+                                // When the C# compiler resolves this type's metadata (for
+                                // inheritance, attribute application, or constructor overload
+                                // resolution at any base() call site), it loads ALL constructor
+                                // signatures, not just the overload that's actually selected.
+                                // Every parameter type's containing assembly must therefore be
+                                // reachable, even if the overload is never called from source --
+                                // otherwise CS0012 fires on the unused overload's parameter type.
+                                // See dfederm/ReferenceTrimmer#146.
+                                TrackInstanceConstructorParameters(named);
+
                                 for (INamedTypeSymbol? baseType = named.BaseType; baseType != null; baseType = baseType.BaseType)
                                 {
                                     TrackAssembly(baseType.ContainingAssembly);
@@ -275,6 +292,12 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                                     {
                                         TrackType(typeArg);
                                     }
+
+                                    // The same metadata-closure concern applies up the inheritance
+                                    // chain: when a derived class is declared, the compiler resolves
+                                    // each base type's full constructor metadata to validate the
+                                    // implicit/explicit base() call.
+                                    TrackInstanceConstructorParameters(baseType);
                                 }
 
                                 foreach (INamedTypeSymbol iface in named.AllInterfaces)
@@ -304,6 +327,128 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             foreach (KeyValuePair<string, TypedConstant> arg in attr.NamedArguments)
             {
                 TrackTypedConstant(arg.Value);
+            }
+        }
+
+        // When a named type is loaded by the C# compiler (because it is used as a base type,
+        // applied as an attribute, or otherwise has its metadata resolved), the compiler must
+        // resolve the parameter types of every constructor on the type, not just the overload
+        // that source code actually selects. Overload resolution at any base() call site or
+        // attribute application requires *all* candidates to be reachable so the compiler can
+        // pick the best match -- a sibling overload that takes a type from an unreferenced
+        // assembly produces CS0012 even when no source call selects it.
+        // See dfederm/ReferenceTrimmer#146.
+        void TrackInstanceConstructorParameters(INamedTypeSymbol type)
+        {
+            foreach (IMethodSymbol ctor in type.InstanceConstructors)
+            {
+                foreach (IParameterSymbol param in ctor.Parameters)
+                {
+                    TrackType(param.Type);
+                }
+            }
+        }
+
+        // When source code performs a name-based member lookup on a type -- e.g. an invocation
+        // `p.Foo(x)`, a method-group reference `Action a = p.Foo`, or a static method call
+        // `Provider.P.Foo(x)` -- the C# compiler resolves ALL members named `memberName` on
+        // the receiver type AND its base chain / implemented interfaces in order to perform
+        // overload resolution. Every sibling overload's signature must therefore be metadata-
+        // resolvable, even ones source code never actually selects, otherwise CS0012 fires
+        // on the unused overload's parameter or return type. The selected overload's assembly
+        // is already credited via the existing TargetMethod tracking; this fills the gap for
+        // siblings. Same family as the constructor-overload gap (#146) and the override-chain
+        // gap (PR #143), specialized to per-call-site name resolution.
+        void TrackOverloadSiblings(ITypeSymbol? receiverType, string? memberName)
+        {
+            if (receiverType is not INamedTypeSymbol named || string.IsNullOrEmpty(memberName))
+            {
+                return;
+            }
+
+            for (INamedTypeSymbol? t = named; t != null; t = t.BaseType)
+            {
+                TrackOverloadSiblingsOnType(t, memberName!);
+            }
+
+            foreach (INamedTypeSymbol iface in named.AllInterfaces)
+            {
+                TrackOverloadSiblingsOnType(iface, memberName!);
+            }
+        }
+
+        void TrackOverloadSiblingsOnType(INamedTypeSymbol type, string memberName)
+        {
+            ConcurrentDictionary<string, byte> namesForType = memberLookupWalked.GetOrAdd(
+                type,
+                static _ => new ConcurrentDictionary<string, byte>(StringComparer.Ordinal));
+            if (!namesForType.TryAdd(memberName, 0))
+            {
+                return;
+            }
+
+            foreach (ISymbol member in type.GetMembers(memberName))
+            {
+                switch (member)
+                {
+                    case IMethodSymbol method:
+                        TrackType(method.ReturnType);
+                        foreach (IParameterSymbol param in method.Parameters)
+                        {
+                            TrackType(param.Type);
+                        }
+
+                        break;
+                    case IPropertySymbol property:
+                        TrackType(property.Type);
+                        foreach (IParameterSymbol param in property.Parameters)
+                        {
+                            TrackType(param.Type);
+                        }
+
+                        break;
+                }
+            }
+        }
+
+        // Indexer access (`p[k]`) performs name-based lookup keyed not on a single name but on
+        // "any indexer on the type", so all indexers on the receiver type and its base chain /
+        // interfaces participate in overload resolution and must have resolvable signatures.
+        void TrackIndexerSiblings(ITypeSymbol? receiverType)
+        {
+            if (receiverType is not INamedTypeSymbol named)
+            {
+                return;
+            }
+
+            for (INamedTypeSymbol? t = named; t != null; t = t.BaseType)
+            {
+                TrackIndexerSiblingsOnType(t);
+            }
+
+            foreach (INamedTypeSymbol iface in named.AllInterfaces)
+            {
+                TrackIndexerSiblingsOnType(iface);
+            }
+        }
+
+        void TrackIndexerSiblingsOnType(INamedTypeSymbol type)
+        {
+            if (!indexerLookupWalked.TryAdd(type, 0))
+            {
+                return;
+            }
+
+            foreach (ISymbol member in type.GetMembers())
+            {
+                if (member is IPropertySymbol property && property.IsIndexer)
+                {
+                    TrackType(property.Type);
+                    foreach (IParameterSymbol param in property.Parameters)
+                    {
+                        TrackType(param.Type);
+                    }
+                }
             }
         }
 
@@ -505,6 +650,28 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                             TrackType(typeArg);
                         }
 
+                        // The compiler performs name-based lookup of `TargetMethod.Name` on
+                        // the receiver type's member surface for overload resolution; sibling
+                        // overloads on that type and its base chain must be metadata-resolvable.
+                        TrackOverloadSiblings(
+                            invocation.Instance?.Type ?? invocation.TargetMethod.ContainingType,
+                            invocation.TargetMethod.Name);
+
+                        // Extension method invocations (`p.Foo(arg)` where Foo is an extension)
+                        // additionally resolve name lookup on the extension method's containing
+                        // static class. The receiver type's lookup above misses this because the
+                        // static class isn't part of the receiver's inheritance / interface
+                        // surface. Sibling extension overloads on the static class must still be
+                        // metadata-resolvable; without this, e.g. a sibling `Foo(this P, Dep.X)`
+                        // sharing the same name would produce CS0012 on Dep.X's assembly when
+                        // overload resolution inspects it.
+                        if (invocation.TargetMethod.IsExtensionMethod)
+                        {
+                            TrackOverloadSiblings(
+                                invocation.TargetMethod.ContainingType,
+                                invocation.TargetMethod.Name);
+                        }
+
                         break;
 
                     case IObjectCreationOperation creation:
@@ -514,6 +681,32 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     case IMemberReferenceOperation memberRef:
                         TrackAssembly(memberRef.Member.ContainingAssembly);
                         TrackOverriddenChain(memberRef.Member);
+
+                        // Method-group references (e.g. `Action a = p.Foo;`) trigger the same
+                        // name-based overload resolution as IInvocationOperation; track sibling
+                        // overloads of the referenced method on the receiver type.
+                        if (memberRef is IMethodReferenceOperation methodRef)
+                        {
+                            TrackOverloadSiblings(
+                                methodRef.Instance?.Type ?? methodRef.Method.ContainingType,
+                                methodRef.Method.Name);
+
+                            // Same extension-method special case as IInvocationOperation.
+                            if (methodRef.Method.IsExtensionMethod)
+                            {
+                                TrackOverloadSiblings(
+                                    methodRef.Method.ContainingType,
+                                    methodRef.Method.Name);
+                            }
+                        }
+                        else if (memberRef is IPropertyReferenceOperation propRef && propRef.Property.IsIndexer)
+                        {
+                            // Indexer access (`p[k]`) performs name-based lookup over all
+                            // indexers on the receiver type; sibling indexers must have
+                            // metadata-resolvable signatures.
+                            TrackIndexerSiblings(propRef.Instance?.Type ?? propRef.Property.ContainingType);
+                        }
+
                         break;
 
                     case ITypeOfOperation typeOfOp:

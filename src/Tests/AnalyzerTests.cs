@@ -855,6 +855,428 @@ public sealed class AnalyzerTests
         StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Unrelated");
     }
 
+    [TestMethod]
+    public async Task UsedViaUnusedConstructorOverloadOnBaseType()
+    {
+        // The canonical issue #146 scenario: Provider's class has two constructors, one taking
+        // params string[] and another taking ProviderDependency.Class1. Consumer derives from
+        // Provider and only calls the params-string overload, but the C# compiler resolves the
+        // FULL constructor metadata when validating inheritance / overload resolution at the
+        // base() call. Removing ProviderDependency produces CS0012 on the unused overload's
+        // parameter type, even though source never selects that overload.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class Class1 {
+                    public Class1(params string[] x) { }
+                    public Class1(ProviderDependency.Class1 attribute) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer : Provider.Class1 {
+                public Consumer() : base(""1"") { }
+            }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedConstructorOverloadOnAttribute()
+    {
+        // Issue #146 attribute variant: Provider's Attribute1 has two constructors, one taking
+        // params string[] and another taking ProviderDependency.Class1. Consumer applies the
+        // attribute via the params-string overload, but the C# compiler still resolves the full
+        // attribute type's metadata -- including all constructor signatures -- so removing
+        // ProviderDependency produces CS0012 on the unused overload's parameter type.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                [System.AttributeUsage(System.AttributeTargets.Class)]
+                public sealed class Attribute1 : System.Attribute {
+                    public Attribute1(params string[] x) { }
+                    public Attribute1(ProviderDependency.Class1 attribute) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"[Provider.Attribute1(""1"")] public class Class2 { }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task BaseTypeWithMultipleUnusedConstructorOverloads()
+    {
+        // Provider's class has three constructors pulling parameter types from three different
+        // external assemblies. Consumer only calls the parameterless overload. All three external
+        // assemblies must be tracked because the compiler resolves every overload's signature
+        // when doing constructor overload resolution at the base() call site.
+        var dep1 = EmitDependency(
+            "namespace Dep1 { public class T1 { } }",
+            assemblyName: "Dep1Asm");
+        var dep2 = EmitDependency(
+            "namespace Dep2 { public class T2 { } }",
+            assemblyName: "Dep2Asm");
+        var dep3 = EmitDependency(
+            "namespace Dep3 { public class T3 { } }",
+            assemblyName: "Dep3Asm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class Base {
+                    public Base() { }
+                    public Base(Dep1.T1 a) { }
+                    public Base(Dep2.T2 b) { }
+                    public Base(Dep3.T3 c) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [dep1.Reference, dep2.Reference, dep3.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "public class Consumer : Provider.Base { public Consumer() : base() { } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (dep1.Reference, dep1.Path, "ProjectReference", "../Dep1/Dep1.csproj"),
+             (dep2.Reference, dep2.Path, "ProjectReference", "../Dep2/Dep2.csproj"),
+             (dep3.Reference, dep3.Path, "ProjectReference", "../Dep3/Dep3.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UnrelatedAssemblyNotMarkedByConstructorOverloadWalk()
+    {
+        // Negative test: the constructor-parameter walk must only credit assemblies on the
+        // base type's actual constructor signatures. Presence of an unrelated assembly that
+        // happens to define a same-named type should not be picked up.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class Class1 {
+                    public Class1(params string[] x) { }
+                    public Class1(ProviderDependency.Class1 attribute) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var unrelated = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "UnrelatedAsm");
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer : Provider.Class1 {
+                public Consumer() : base(""1"") { }
+            }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj"),
+             (unrelated.Reference, unrelated.Path, "ProjectReference", "../Unrelated/Unrelated.csproj")]);
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Unrelated");
+    }
+
+    [TestMethod]
+    public async Task ConstructorOverloadAssemblyCreditedThroughInheritedBase()
+    {
+        // The metadata-closure concern walks up the inheritance chain: when Consumer derives
+        // from Mid, and Mid derives from Provider.Base which has a constructor taking a type
+        // from ProviderDependency, ProviderDependency must still be reachable. The compiler
+        // resolves Provider.Base's constructor metadata when validating Mid's inheritance.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class Base {
+                    public Base() { }
+                    public Base(ProviderDependency.Class1 c) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var mid = EmitDependency(
+            "namespace Mid { public class M : Provider.Base { } }",
+            assemblyName: "MidAsm",
+            additionalReferences: [provider.Reference, providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            "public class Consumer : Mid.M { }",
+            [(mid.Reference, mid.Path, "ProjectReference", "../Mid/Mid.csproj"),
+             (provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedMethodOverloadOnInstanceMethod()
+    {
+        // Same metadata-closure shape as #146, but for instance method overloads. When source
+        // calls `p.Foo("x")`, the C# compiler does name-based lookup of `Foo` on Provider.P
+        // and must resolve every sibling overload's signature for overload resolution. A
+        // sibling `Foo(ProviderDependency.Class1)` forces ProviderDependency to be reachable
+        // even though source never selects that overload.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class P {
+                    public void Foo(string s) { }
+                    public void Foo(ProviderDependency.Class1 c) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer { void M(Provider.P p) { p.Foo(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedStaticMethodOverload()
+    {
+        // Same shape as the instance-method case but for static methods invoked through the
+        // type name (`Provider.P.Foo("x")`). The compiler still does name-based lookup over
+        // all `Foo` overloads on Provider.P during static method overload resolution.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public static class P {
+                    public static void Foo(string s) { }
+                    public static void Foo(ProviderDependency.Class1 c) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer { void M() { Provider.P.Foo(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedMethodOverloadOnBaseChain()
+    {
+        // Sibling overload lives on a base type up the inheritance chain. When source calls
+        // `d.Foo("x")` on Derived, name lookup walks Derived + Base; the sibling `Foo(Dep)`
+        // declared on Base must still have its parameter type's assembly reachable.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class Base {
+                    public void Foo(string s) { }
+                    public void Foo(ProviderDependency.Class1 c) { }
+                }
+                public class Derived : Base { }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer { void M(Provider.Derived d) { d.Foo(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedMethodOverloadOnInterface()
+    {
+        // Sibling overload on an interface. Source calls `i.Foo("x")` through the interface;
+        // name lookup walks the interface's declared members and a sibling `Foo(Dep)` requires
+        // the parameter type's assembly to be reachable.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public interface IFoo {
+                    void Foo(string s);
+                    void Foo(ProviderDependency.Class1 c);
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer { void M(Provider.IFoo i) { i.Foo(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedMethodGroupOverload()
+    {
+        // Method-group reference (delegate target). Converting `p.Foo` to a delegate triggers
+        // overload resolution against ALL `Foo` overloads on Provider.P, the same as a direct
+        // invocation. Sibling overload's parameter type assembly must be reachable.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class P {
+                    public void Foo(string s) { }
+                    public void Foo(ProviderDependency.Class1 c) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer { void M(Provider.P p) { System.Action<string> a = p.Foo; a(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedIndexerOverload()
+    {
+        // Indexer access performs name-based lookup over all indexers on the receiver type.
+        // Source uses the string-keyed indexer; a sibling indexer keyed on a type from another
+        // assembly must still have its parameter type reachable.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class P {
+                    public int this[string s] => 0;
+                    public int this[ProviderDependency.Class1 c] => 1;
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer { int M(Provider.P p) => p[""x""]; }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedExtensionMethodOverload()
+    {
+        // Extension method instance-style invocation. `p.Foo("a")` where Foo is declared as
+        // a static extension on Provider.Ext. Name lookup for overload resolution happens on
+        // the extension's containing static class (Provider.Ext), not on the receiver type
+        // (Provider.P). Sibling extension `Foo(this P, ProviderDependency.Class1)` must have
+        // its parameter type's assembly reachable -- when the explicit-arg arity matches both
+        // overloads, the compiler must inspect parameter types and CS0012 fires on the
+        // unused sibling's parameter.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class P { }
+                public static class Ext {
+                    public static void Foo(this P p, string s) { }
+                    public static void Foo(this P p, ProviderDependency.Class1 c) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"using Provider;
+              public class Consumer { void M(Provider.P p) { p.Foo(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UsedViaUnusedExtensionMethodGroup()
+    {
+        // Method-group conversion of an extension method. Same metadata-closure shape as
+        // direct invocation: name lookup happens on the extension's containing static class
+        // for overload resolution against the delegate signature.
+        var providerDep = EmitDependency(
+            "namespace ProviderDependency { public class Class1 { } }",
+            assemblyName: "ProviderDependencyAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class P { }
+                public static class Ext {
+                    public static void Foo(this P p, string s) { }
+                    public static void Foo(this P p, ProviderDependency.Class1 c) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [providerDep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"using Provider;
+              public class Consumer { void M(Provider.P p) { System.Action<string> a = p.Foo; a(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj")]);
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    public async Task UnrelatedAssemblyNotMarkedByMethodInvocation()
+    {
+        // Negative test: the sibling-overload walk must only credit assemblies on the receiver
+        // type's actual member surface. Calling a method on a type whose siblings don't touch
+        // an unrelated assembly should not credit that unrelated assembly.
+        var dep = EmitDependency(
+            "namespace Dep { public class T { } }",
+            assemblyName: "DepAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class P {
+                    public void Foo(string s) { }
+                    public void Foo(int i) { }
+                }
+            }",
+            assemblyName: "ProviderAsm");
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer { void M(Provider.P p) { p.Foo(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (dep.Reference, dep.Path, "ProjectReference", "../Dep/Dep.csproj")]);
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Dep");
+    }
+
+    [TestMethod]
+    public async Task UnrelatedAssemblyNotMarkedByDifferentMemberName()
+    {
+        // Negative test: the sibling walk is keyed by member name. Calling Foo on a type that
+        // also has a Bar(Dep) method should not credit Dep, because name lookup for `Foo`
+        // never visits `Bar` and the compiler's metadata closure for Foo doesn't include Bar.
+        var dep = EmitDependency(
+            "namespace Dep { public class T { } }",
+            assemblyName: "DepAsm");
+        var provider = EmitDependency(
+            @"namespace Provider {
+                public class P {
+                    public void Foo(string s) { }
+                    public void Bar(Dep.T t) { }
+                }
+            }",
+            assemblyName: "ProviderAsm",
+            additionalReferences: [dep.Reference]);
+        var diagnostics = await RunAnalyzerAsync(
+            @"public class Consumer { void M(Provider.P p) { p.Foo(""x""); } }",
+            [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
+             (dep.Reference, dep.Path, "ProjectReference", "../Dep/Dep.csproj")]);
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Dep");
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  Test infrastructure
     // ──────────────────────────────────────────────────────────────────────
