@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -934,7 +934,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
         if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
                 .TryGetValue("build_property.EnableReferenceTrimmerDiagnostics", out string? enableDiagnostics)
-            && string.Equals(enableDiagnostics, "true", StringComparison.OrdinalIgnoreCase))
+            && bool.TrueString.Equals(enableDiagnostics, StringComparison.OrdinalIgnoreCase))
         {
             HashSet<string> unusedReferences = new(PathComparer);
             foreach (MetadataReference metadataReference in compilation.References)
@@ -949,6 +949,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
 
         Dictionary<string, List<string>> packageAssembliesDict = new(PathComparer);
+        Dictionary<string, DiagnosticSeverity> packageSeverities = new(PathComparer);
         foreach (DeclaredReference declaredReference in ReadDeclaredReferences(sourceText))
         {
             switch (declaredReference.Kind)
@@ -958,7 +959,8 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     // Use the conservative transitively-used set for bare References
                     if (!transitivelyUsedReferences.Contains(declaredReference.AssemblyPath))
                     {
-                        context.ReportDiagnostic(Diagnostic.Create(RT0001Descriptor, Location.None, declaredReference.Spec));
+                        DiagnosticSeverity severity = ToDiagnosticSeverity(declaredReference.Severity);
+                        context.ReportDiagnostic(Diagnostic.Create(RT0001Descriptor, Location.None, effectiveSeverity: severity, additionalLocations: null, properties: null, declaredReference.Spec));
                     }
 
                     break;
@@ -967,7 +969,8 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 {
                     if (!projectReferenceUsedSet.Contains(declaredReference.AssemblyPath))
                     {
-                        context.ReportDiagnostic(Diagnostic.Create(RT0002Descriptor, Location.None, declaredReference.Spec));
+                        DiagnosticSeverity severity = ToDiagnosticSeverity(declaredReference.Severity);
+                        context.ReportDiagnostic(Diagnostic.Create(RT0002Descriptor, Location.None, effectiveSeverity: severity, additionalLocations: null, properties: null, declaredReference.Spec));
                     }
 
                     break;
@@ -981,6 +984,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     }
 
                     packageAssemblies.Add(declaredReference.AssemblyPath);
+                    packageSeverities.Add(declaredReference.Spec, ToDiagnosticSeverity(declaredReference.Severity));
                     break;
                 }
             }
@@ -993,7 +997,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             List<string> packageAssemblies = kvp.Value;
             if (!usedReferences.Overlaps(packageAssemblies))
             {
-                context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, packageName));
+                context.ReportDiagnostic(Diagnostic.Create(RT0003Descriptor, Location.None, effectiveSeverity: packageSeverities[kvp.Key], additionalLocations: null, properties: null, packageName));
             }
         }
     }
@@ -1160,7 +1164,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec, Severity), one reference per line.
     // Keep in sync with SaveDeclaredReferences in CollectDeclaredReferencesTask.cs.
     private static IEnumerable<DeclaredReference> ReadDeclaredReferences(SourceText sourceText)
     {
@@ -1178,6 +1182,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
             int firstTab = -1;
             int secondTab = -1;
+            int thirdTab = -1;
             for (int i = start; i < end; i++)
             {
                 if (sourceText[i] == '\t')
@@ -1186,21 +1191,25 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     {
                         firstTab = i;
                     }
-                    else
+                    else if (secondTab == -1)
                     {
                         secondTab = i;
-                        break;
+                    }
+                    else
+                    {
+                        thirdTab = i;
                     }
                 }
             }
 
-            if (firstTab == -1 || secondTab == -1)
+            if (firstTab == -1 || secondTab == -1 || thirdTab == -1)
             {
                 yield break;
             }
 
             string assemblyPath = sourceText.ToString(TextSpan.FromBounds(start, firstTab));
-            string spec = sourceText.ToString(TextSpan.FromBounds(secondTab + 1, end));
+            string spec = sourceText.ToString(TextSpan.FromBounds(secondTab + 1, thirdTab));
+            Enum.TryParse<ReferenceTrimmerSeverity>(sourceText.ToString(TextSpan.FromBounds(thirdTab + 1, end)), out var severity);
 
             // Determine kind without allocating a string. The three possible values are
             // "Reference" (len 9), "ProjectReference" (len 16), "PackageReference" (len 16).
@@ -1223,7 +1232,15 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            yield return new DeclaredReference(assemblyPath, kind, spec);
+            yield return new DeclaredReference(assemblyPath, kind, spec, severity);
         }
     }
+
+    private static DiagnosticSeverity ToDiagnosticSeverity(ReferenceTrimmerSeverity severity) => severity switch
+    {
+        ReferenceTrimmerSeverity.Hidden => DiagnosticSeverity.Hidden,
+        ReferenceTrimmerSeverity.Info => DiagnosticSeverity.Info,
+        ReferenceTrimmerSeverity.Warning => DiagnosticSeverity.Warning,
+        _ => throw new ArgumentOutOfRangeException(nameof(severity), $"Unexpected severity value: {severity}")
+    };
 }
