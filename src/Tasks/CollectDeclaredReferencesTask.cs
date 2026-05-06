@@ -53,6 +53,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
     public string? NuGetPackageRoot { get; set; }
 
+    public string? EnableReferenceTrimmerDiagnostics { get; set; }
+
     public override bool Execute()
     {
         AppDomain.CurrentDomain.AssemblyResolve += ResolveAssembly;
@@ -89,7 +91,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     }
 
                     // Ignore suppressions
-                    if (IsSuppressed(reference, "RT0001"))
+                    var severity = GetReferenceTrimmerSeverity(reference, "RT0001");
+                    if (severity == ReferenceTrimmerSeverity.Hidden)
                     {
                         Log.LogMessage(MessageImportance.Low, "Skipping Reference '{0}' because it is suppressed via NoWarn=\"RT0001\" or <TreatAsUsed>", reference.ItemSpec);
                         continue;
@@ -125,7 +128,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     if (referencePath is not null)
                     {
-                        declaredReferences.Add(new DeclaredReference(referencePath, DeclaredReferenceKind.Reference, referenceSpec));
+                        declaredReferences.Add(new DeclaredReference(referencePath, DeclaredReferenceKind.Reference, referenceSpec, severity));
                     }
                 }
             }
@@ -139,7 +142,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 foreach (ITaskItem projectReference in ProjectReferences)
                 {
                     // Ignore suppressions
-                    if (IsSuppressed(projectReference, "RT0002"))
+                    var severity = GetReferenceTrimmerSeverity(projectReference, "RT0002");
+                    if (severity == ReferenceTrimmerSeverity.Hidden)
                     {
                         Log.LogMessage(MessageImportance.Low, "Skipping ProjectReference '{0}' because it is suppressed via NoWarn=\"RT0002\" or <TreatAsUsed>", projectReference.ItemSpec);
                         continue;
@@ -158,7 +162,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                     string projectReferenceAssemblyPath = Path.GetFullPath(projectReference.ItemSpec);
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
 
-                    declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
+                    declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile, severity));
                 }
             }
             else
@@ -172,7 +176,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
                 foreach (ITaskItem packageReference in PackageReferences)
                 {
                     // Ignore suppressions
-                    if (IsSuppressed(packageReference, "RT0003"))
+                    var severity = GetReferenceTrimmerSeverity(packageReference, "RT0003");
+                    if (severity == ReferenceTrimmerSeverity.Hidden)
                     {
                         Log.LogMessage(MessageImportance.Low, "Skipping PackageReference '{0}' because it is suppressed via NoWarn=\"RT0003\" or <TreatAsUsed>", packageReference.ItemSpec);
                         continue;
@@ -197,7 +202,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     foreach (string assemblyPath in packageInfo.CompileTimeAssemblies)
                     {
-                        declaredReferences.Add(new DeclaredReference(assemblyPath, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec));
+                        declaredReferences.Add(new DeclaredReference(assemblyPath, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec, severity));
                     }
                 }
             }
@@ -450,7 +455,9 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         return null;
     }
 
-    private static bool IsSuppressed(ITaskItem item, string warningId)
+    private bool IsReferenceTrimmerDiagnosticsEnabled() => bool.TrueString.Equals(EnableReferenceTrimmerDiagnostics, StringComparison.OrdinalIgnoreCase);
+
+    private ReferenceTrimmerSeverity GetReferenceTrimmerSeverity(ITaskItem item, string warningId)
     {
         ReadOnlySpan<char> warningIdSpan = warningId.AsSpan();
         ReadOnlySpan<char> remainingNoWarn = item.GetMetadata(NoWarn).AsSpan();
@@ -471,19 +478,19 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
             if (currentNoWarn.Trim().Equals(warningIdSpan, StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                return IsReferenceTrimmerDiagnosticsEnabled() ? ReferenceTrimmerSeverity.Info : ReferenceTrimmerSeverity.Hidden;
             }
         }
 
         if (item.GetMetadata(TreatAsUsed).Equals("True", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            return ReferenceTrimmerSeverity.Hidden;
         }
 
-        return false;
+        return ReferenceTrimmerSeverity.Warning;
     }
 
-    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec, Severity), one reference per line.
     // Keep in sync with ReadDeclaredReferences in ReferenceTrimmerAnalyzer.cs.
     private static void SaveDeclaredReferences(IReadOnlyList<DeclaredReference> declaredReferences, string filePath)
     {
@@ -504,6 +511,8 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             writer.Write(kindString);
             writer.Write(fieldDelimiter);
             writer.WriteLine(reference.Spec);
+            writer.Write(fieldDelimiter);
+            writer.WriteLine(reference.Severity);
         }
     }
 
