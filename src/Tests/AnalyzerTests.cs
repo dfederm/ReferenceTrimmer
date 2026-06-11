@@ -1353,7 +1353,7 @@ public sealed class AnalyzerTests
         foreach (var dep in dependencies)
         {
             references.Add(dep.Reference);
-            tsvLines.Add($"{dep.Path}\t{dep.Kind}\t{dep.Spec}");
+            tsvLines.Add($"{dep.Path}\t{dep.Kind}\t{dep.Spec}\tWarning");
         }
 
         var compilation = CSharpCompilation.Create(

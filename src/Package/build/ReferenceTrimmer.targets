@@ -86,7 +86,8 @@
       NuGetRestoreTargets="$(NuGetRestoreTargets)"
       TargetFrameworkDirectories="$(TargetFrameworkDirectory)"
       IgnorePackageBuildFiles="@(ReferenceTrimmerIgnorePackageBuildFiles)"
-      NuGetPackageRoot="$(NuGetPackageRoot)" />
+      NuGetPackageRoot="$(NuGetPackageRoot)"
+      EnableReferenceTrimmerDiagnostics="$(EnableReferenceTrimmerDiagnostics)" />
   </Target>
 
   <!--

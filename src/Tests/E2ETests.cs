@@ -34,9 +34,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UsedProjectReference(bool useSymbolAnalysis)
+    public async Task UsedProjectReference(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -45,9 +45,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UsedProjectReferenceProduceReferenceAssembly(bool useSymbolAnalysis)
+    public async Task UsedProjectReferenceProduceReferenceAssembly(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -56,9 +56,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UsedProjectReferenceNoReferenceAssembly(bool useSymbolAnalysis)
+    public async Task UsedProjectReferenceNoReferenceAssembly(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -67,21 +67,21 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UsedProjectReferenceSwitchPattern(bool useSymbolAnalysis)
+    public async Task UsedProjectReferenceSwitchPattern(bool useSymbolAnalysis)
     {
         // Dependency type used only in switch expression type pattern and switch case clause pattern.
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
     }
 
     [TestMethod]
-    public Task UsedProjectReferenceNameof()
+    public async Task UsedProjectReferenceNameof()
     {
         // Dependency type used only in nameof(). nameof is lowered to a string literal
         // in IOperation, so only the syntax-level handler catches it. Symbol-analysis only.
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: true);
@@ -90,11 +90,11 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UsedProjectReferenceCref(bool useSymbolAnalysis)
+    public async Task UsedProjectReferenceCref(bool useSymbolAnalysis)
     {
         // Dependency type used only in XML doc <see cref="..."/>.
         // Both legacy (GetUsedAssemblyReferences with doc mode on) and symbol-based paths handle this.
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -105,9 +105,9 @@ public sealed class E2ETests
     [DataRow(false, false)]
     [DataRow(true, true)]
     [DataRow(false, true)]
-    public Task UnusedProjectReference(bool enableReferenceTrimmerDiagnostics, bool useSymbolAnalysis)
+    public async Task UnusedProjectReference(bool enableReferenceTrimmerDiagnostics, bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -120,9 +120,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedProjectReferenceProduceReferenceAssembly(bool useSymbolAnalysis)
+    public async Task UnusedProjectReferenceProduceReferenceAssembly(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -134,9 +134,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedProjectReferenceNoReferenceAssembly(bool useSymbolAnalysis)
+    public async Task UnusedProjectReferenceNoReferenceAssembly(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -148,9 +148,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedProjectReferenceNoWarn(bool useSymbolAnalysis)
+    public async Task UnusedProjectReferenceNoWarn(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -159,9 +159,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedProjectReferenceTreatAsUsed(bool useSymbolAnalysis)
+    public async Task UnusedProjectReferenceTreatAsUsed(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: Array.Empty<Warning>(),
             useSymbolAnalysis: useSymbolAnalysis);
@@ -170,9 +170,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedProjectReferenceSuppressed(bool useSymbolAnalysis)
+    public async Task UnusedProjectReferenceSuppressed(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -181,9 +181,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedTransitiveProjectReference(bool useSymbolAnalysis)
+    public async Task UnusedTransitiveProjectReference(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -196,9 +196,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedDirectAndTransitiveProjectReference(bool useSymbolAnalysis)
+    public async Task UnusedDirectAndTransitiveProjectReference(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -210,13 +210,13 @@ public sealed class E2ETests
     }
 
     [TestMethod]
-    public Task UnusedDirectReferenceUsedTransitively()
+    public async Task UnusedDirectReferenceUsedTransitively()
     {
         // Library directly references TransitiveDependency but doesn't use it.
         // Dependency uses TransitiveDependency. Symbol-based analysis is required to
         // reliably detect this as unused — the default approach may or may not depending
         // on whether reference assemblies strip the transitive metadata.
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -398,9 +398,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UsedPackageReference(bool useSymbolAnalysis)
+    public async Task UsedPackageReference(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -409,9 +409,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UsedIndirectPackageReference(bool useSymbolAnalysis)
+    public async Task UsedIndirectPackageReference(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "WebHost/WebHost.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -420,9 +420,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedPackageReference(bool useSymbolAnalysis)
+    public async Task UnusedPackageReference(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -434,12 +434,12 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedPackageReferenceDocDisabled(bool useSymbolAnalysis)
+    public async Task UnusedPackageReferenceDocDisabled(bool useSymbolAnalysis)
     {
         // Default: RT0000 fires (doc generation disabled warning); the unused package is not detected
         //          because GetUsedAssemblyReferences is less accurate without doc generation.
         // Symbol analysis: RT0003 fires (unused package correctly detected regardless of doc mode).
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: useSymbolAnalysis
                 ? new[] { new Warning("RT0003: PackageReference Newtonsoft.Json can be removed", "Library/Library.csproj") }
@@ -450,9 +450,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedPackageReferenceNoWarn(bool useSymbolAnalysis)
+    public async Task UnusedPackageReferenceNoWarn(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -461,9 +461,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task UnusedPackageReferenceTreatAsUsed(bool useSymbolAnalysis)
+    public async Task UnusedPackageReferenceTreatAsUsed(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -472,9 +472,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task BuildPackageReference(bool useSymbolAnalysis)
+    public async Task BuildPackageReference(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -483,9 +483,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task MissingReferenceSourceTarget(bool useSymbolAnalysis)
+    public async Task MissingReferenceSourceTarget(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -494,9 +494,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task PlatformPackageConflictResolution(bool useSymbolAnalysis)
+    public async Task PlatformPackageConflictResolution(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: new[]
             {
@@ -509,9 +509,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task NoTargets(bool useSymbolAnalysis)
+    public async Task NoTargets(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Project.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -520,9 +520,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task TargetFrameworkWithOs(bool useSymbolAnalysis)
+    public async Task TargetFrameworkWithOs(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -531,9 +531,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task AbsoluteIntermediateOutputPath(bool useSymbolAnalysis)
+    public async Task AbsoluteIntermediateOutputPath(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -542,9 +542,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task BuildExtensions(bool useSymbolAnalysis)
+    public async Task BuildExtensions(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -553,9 +553,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task ReferenceInPackage(bool useSymbolAnalysis)
+    public async Task ReferenceInPackage(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Tests/Tests.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -564,9 +564,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task ReferenceTrimmerDisabled(bool useSymbolAnalysis)
+    public async Task ReferenceTrimmerDisabled(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -640,9 +640,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task WpfApp(bool useSymbolAnalysis)
+    public async Task WpfApp(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "WpfApp/WpfApp.csproj",
             expectedWarnings: [],
             useSymbolAnalysis: useSymbolAnalysis);
@@ -651,9 +651,9 @@ public sealed class E2ETests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public Task PackageReferenceWithFakeBuildFile(bool useSymbolAnalysis)
+    public async Task PackageReferenceWithFakeBuildFile(bool useSymbolAnalysis)
     {
-        return RunMSBuildAsync(
+        await RunMSBuildAsync(
             projectFile: "Library/Library.csproj",
             expectedWarnings:
             [
