@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using ReferenceTrimmer.Tasks;
 
@@ -107,6 +108,70 @@ public sealed class CollectDeclaredReferencesTaskTests
                 File.Delete(outputFile);
             }
         }
+    }
+
+    [TestMethod]
+    public void ExecuteSerializesProjectAssemblyIdentity()
+    {
+        string outputFile = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".tsv");
+        try
+        {
+            const string fusionName = "LogicalAssembly, Version=1.2.3.4, Culture=neutral, PublicKeyToken=null";
+            var projectReference = new MockTaskItem(Path.Combine("ref", "PhysicalFileName.dll"));
+            projectReference.SetMetadata("OriginalProjectReferenceItemSpec", @"..\Dependency\Dependency.csproj");
+            projectReference.SetMetadata("FusionName", fusionName);
+
+            var engine = new MockBuildEngine();
+            var task = new CollectDeclaredReferencesTask
+            {
+                BuildEngine = engine,
+                OutputFile = outputFile,
+                ProjectReferences = [projectReference],
+            };
+
+            bool result = task.Execute();
+
+            Assert.IsTrue(result, "Task should succeed. Errors: " + string.Join("; ", engine.Errors));
+            string expected =
+                Path.GetFullPath(projectReference.ItemSpec)
+                + "\tProjectReference\t"
+                + projectReference.GetMetadata("OriginalProjectReferenceItemSpec")
+                + "\t"
+                + fusionName;
+            Assert.AreEqual(expected, File.ReadAllText(outputFile).TrimEnd());
+        }
+        finally
+        {
+            if (File.Exists(outputFile))
+            {
+                File.Delete(outputFile);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void ProjectAssemblyIdentityParticipatesInIncrementalHash()
+    {
+        string targetsPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "src",
+            "Package",
+            "build",
+            "ReferenceTrimmer.targets"));
+        XDocument targets = XDocument.Load(targetsPath);
+
+        string? projectHashInput = targets
+            .Descendants("_CollectDeclaredReferencesHashInputs")
+            .Select(element => (string?)element.Attribute("Include"))
+            .SingleOrDefault(include => include?.Contains("_ReferenceTrimmerProjectReferences", StringComparison.Ordinal) == true);
+
+        Assert.IsNotNull(projectHashInput);
+        StringAssert.Contains(projectHashInput, "%(FusionName)");
     }
 
     private sealed class MockBuildEngine : IBuildEngine

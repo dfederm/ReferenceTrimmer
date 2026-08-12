@@ -34,6 +34,7 @@
 
       <!-- Hash non-file inputs so changes to item groups and properties are detected -->
       <_CollectDeclaredReferencesHashInputs Include="@(_ReferenceTrimmerReferences -> 'REF=%(Identity)')" />
+      <_CollectDeclaredReferencesHashInputs Include="@(_ReferenceTrimmerProjectReferences -> 'PRJ=%(Identity)|%(FusionName)')" />
       <_CollectDeclaredReferencesHashInputs Include="@(PackageReference -> 'PKG=%(Identity)')" />
       <_CollectDeclaredReferencesHashInputs Include="@(ReferenceTrimmerIgnorePackageBuildFiles -> 'IGN=%(Identity)')" />
       <_CollectDeclaredReferencesHashInputs Include="TFM=$(ReferringTargetFrameworkForProjectReferences)" />
