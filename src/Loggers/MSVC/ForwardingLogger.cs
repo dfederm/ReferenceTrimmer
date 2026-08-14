@@ -46,11 +46,18 @@ public sealed class ForwardingLogger : IForwardingLogger
 
     private sealed class ProjectStateLibs
     {
+        public ProjectStateLibs(string projectFilePath)
+        {
+            ProjectFilePath = projectFilePath;
+        }
+
+        public string ProjectFilePath { get; }
         public State ProjectState { get; set; }
         public SortedSet<string> UnusedProjectLibPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private IEventSource? _eventSource;
+    private readonly ConcurrentDictionary<(int NodeId, int ProjectContextId), ProjectStateLibs> _buildContexts = new();
     private readonly ConcurrentDictionary<string, ProjectStateLibs> _projects = new(StringComparer.OrdinalIgnoreCase);
 
     public const string HelpKeyword = "ReferenceTrimmerUnusedMSVCLibraries";
@@ -114,26 +121,38 @@ public sealed class ForwardingLogger : IForwardingLogger
 
     private void OnTaskStarted(object sender, TaskStartedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(e.ProjectFile) && e.TaskName.Equals(LinkTaskName, StringComparison.OrdinalIgnoreCase))
+        string? projectFilePath = e.ProjectFile;
+        if (!string.IsNullOrEmpty(projectFilePath) && e.TaskName.Equals(LinkTaskName, StringComparison.OrdinalIgnoreCase))
         {
-            _projects[e.ProjectFile] = new ProjectStateLibs { ProjectState = State.LinkStarted };
+            var projectState = new ProjectStateLibs(projectFilePath)
+            {
+                ProjectState = State.LinkStarted,
+            };
+
+            if (TryGetProjectContextKey(e, out (int NodeId, int ProjectContextId) projectContextKey))
+            {
+                _buildContexts[projectContextKey] = projectState;
+            }
+            else
+            {
+                _projects[projectFilePath] = projectState;
+            }
         }
     }
 
     private void OnTaskFinished(object sender, TaskFinishedEventArgs e)
     {
-        if (string.IsNullOrEmpty(e.ProjectFile) || e.TaskName != LinkTaskName || !e.Succeeded)
+        if (!e.TaskName.Equals(LinkTaskName, StringComparison.OrdinalIgnoreCase) || !e.Succeeded)
         {
             return;
         }
 
-        string projectFilePath = e.ProjectFile;
-
-        // Project state present in map if the Link task was detected running in OnTaskStarted.
-        if (!_projects.TryGetValue(projectFilePath, out ProjectStateLibs projState))
+        if (!TryGetProjectState(e, e.ProjectFile, out ProjectStateLibs projState))
         {
             return;
         }
+
+        string projectFilePath = projState.ProjectFilePath;
 
         if (projState.ProjectState is State.UnusedLibsStarted or State.UnusedLibsEnded &&
             projState.UnusedProjectLibPaths.Count > 0)
@@ -219,7 +238,7 @@ public sealed class ForwardingLogger : IForwardingLogger
                     jsonSb.ToString()));
         }
 
-        _projects.TryRemove(projectFilePath, out _);
+        RemoveProjectState(e, projectFilePath);
     }
 
     private static string EscapeJsonChars(string str)
@@ -229,15 +248,14 @@ public sealed class ForwardingLogger : IForwardingLogger
 
     private void OnMessageRaised(object sender, BuildMessageEventArgs e)
     {
-        string? projectFilePath = e.ProjectFile;
         string? message = e.Message;
 
-        if (string.IsNullOrEmpty(projectFilePath) || message is null)
+        if (message is null)
         {
             return;
         }
 
-        if (!_projects.TryGetValue(projectFilePath, out ProjectStateLibs? projState))
+        if (!TryGetProjectState(e, e.ProjectFile, out ProjectStateLibs projState))
         {
             return;
         }
@@ -279,5 +297,50 @@ public sealed class ForwardingLogger : IForwardingLogger
             default:
                 break;
         }
+    }
+
+    private bool TryGetProjectState(BuildEventArgs e, string? projectFilePath, out ProjectStateLibs projectState)
+    {
+        if (TryGetProjectContextKey(e, out (int NodeId, int ProjectContextId) projectContextKey))
+        {
+            return _buildContexts.TryGetValue(projectContextKey, out projectState!);
+        }
+
+        if (projectFilePath is { Length: > 0 })
+        {
+            return _projects.TryGetValue(projectFilePath, out projectState!);
+        }
+
+        projectState = null!;
+        return false;
+    }
+
+    private void RemoveProjectState(BuildEventArgs e, string projectFilePath)
+    {
+        if (TryGetProjectContextKey(e, out (int NodeId, int ProjectContextId) projectContextKey))
+        {
+            _buildContexts.TryRemove(projectContextKey, out _);
+        }
+        else
+        {
+            _projects.TryRemove(projectFilePath, out _);
+        }
+    }
+
+    private static bool TryGetProjectContextKey(
+        BuildEventArgs e,
+        out (int NodeId, int ProjectContextId) projectContextKey)
+    {
+        BuildEventContext? context = e.BuildEventContext;
+        if (context is not null &&
+            context.NodeId != BuildEventContext.InvalidNodeId &&
+            context.ProjectContextId != BuildEventContext.InvalidProjectContextId)
+        {
+            projectContextKey = (context.NodeId, context.ProjectContextId);
+            return true;
+        }
+
+        projectContextKey = default;
+        return false;
     }
 }
