@@ -1277,6 +1277,267 @@ public sealed class AnalyzerTests
         StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Dep");
     }
 
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UsedCompilationReferenceMatchesFullAssemblyIdentity(bool useSymbolAnalysis)
+    {
+        var dependency = CreateCompilationReference(
+            "namespace Dep { public class Foo { } }",
+            assemblyName: "LogicalAssembly",
+            declaredFileName: "PhysicalFileName.dll");
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C : Dep.Foo { }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", dependency.Identity)],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnusedCompilationReferenceStillReportsDiagnostic(bool useSymbolAnalysis)
+    {
+        var dependency = CreateCompilationReference(
+            "namespace Dep { public class Foo { } }",
+            assemblyName: "LogicalAssembly",
+            declaredFileName: "PhysicalFileName.dll");
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", dependency.Identity)],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CompilationReferenceRequiresFullAssemblyIdentityMatch(bool useSymbolAnalysis)
+    {
+        var dependency = CreateCompilationReference(
+            "namespace Dep { public class Foo { } }",
+            assemblyName: "LogicalAssembly",
+            declaredFileName: "PhysicalFileName.dll");
+        string differentVersionIdentity = dependency.Identity.Replace(
+            "Version=0.0.0.0",
+            "Version=9.0.0.0",
+            StringComparison.Ordinal);
+        Assert.AreNotEqual(dependency.Identity, differentVersionIdentity);
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C : Dep.Foo { }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", differentVersionIdentity)],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task AliasedCompilationReferenceMatchesAssemblyIdentity(bool useSymbolAnalysis)
+    {
+        var dependency = CreateCompilationReference(
+            "namespace Dep { public class Foo { } }",
+            assemblyName: "LogicalAssembly",
+            declaredFileName: "PhysicalFileName.dll",
+            aliases: ["LibAlias"]);
+
+        var diagnostics = await RunAnalyzerAsync(
+            "extern alias LibAlias; class C : LibAlias::Dep.Foo { }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", dependency.Identity)],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task DuplicateCompilationReferenceIdentitiesAreConservativelyRetained(bool useSymbolAnalysis)
+    {
+        var first = CreateCompilationReference(
+            "namespace First { public class Foo { } }",
+            assemblyName: "DuplicateIdentity",
+            declaredFileName: "FirstPhysicalName.dll",
+            aliases: ["FirstAlias"]);
+        var second = CreateCompilationReference(
+            "namespace Second { public class Bar { } }",
+            assemblyName: "DuplicateIdentity",
+            declaredFileName: "SecondPhysicalName.dll",
+            aliases: ["SecondAlias"]);
+
+        var diagnostics = await RunAnalyzerAsync(
+            "extern alias FirstAlias; class C : FirstAlias::First.Foo { }",
+            [(first.Reference, first.Path, "ProjectReference", "../First/First.csproj", first.Identity),
+             (second.Reference, second.Path, "ProjectReference", "../Second/Second.csproj", second.Identity)],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task DuplicateCompilationReferenceIdentityUnionsTransitiveDependencies(bool useSymbolAnalysis)
+    {
+        var dependency = CreateCompilationReference(
+            "namespace Dep { public class A { } }",
+            assemblyName: "DependencyIdentity",
+            declaredFileName: "DependencyPhysicalName.dll");
+        var first = CreateCompilationReference(
+            "namespace First { public class Foo { } }",
+            assemblyName: "DuplicateIdentity",
+            declaredFileName: "FirstPhysicalName.dll",
+            aliases: ["FirstAlias"]);
+        var second = CreateCompilationReference(
+            "namespace Second { public class Bar { private Dep.A _field; } }",
+            assemblyName: "DuplicateIdentity",
+            declaredFileName: "SecondPhysicalName.dll",
+            aliases: ["SecondAlias"],
+            additionalReferences: [dependency.Reference]);
+        var unrelated = CreateCompilationReference(
+            "namespace Other { public class C { } }",
+            assemblyName: "UnrelatedIdentity",
+            declaredFileName: "UnrelatedPhysicalName.dll");
+
+        var diagnostics = await RunAnalyzerAsync(
+            "extern alias SecondAlias; class C { SecondAlias::Second.Bar _field; }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", dependency.Identity),
+             (first.Reference, first.Path, "ProjectReference", "../First/First.csproj", first.Identity),
+             (second.Reference, second.Path, "ProjectReference", "../Second/Second.csproj", second.Identity),
+             (unrelated.Reference, unrelated.Path, "ProjectReference", "../Unrelated/Unrelated.csproj", unrelated.Identity)],
+            useSymbolAnalysis: useSymbolAnalysis,
+            disableTransitiveProjectReferences: true);
+
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "../Unrelated/Unrelated.csproj");
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task LegacyProjectReferenceRowIsConservativelyRetainedForCompilationReference(bool useSymbolAnalysis)
+    {
+        var dependency = CreateCompilationReference(
+            "namespace Dep { public class Foo { } }",
+            assemblyName: "LogicalAssembly",
+            declaredFileName: "PhysicalFileName.dll");
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C : Dep.Foo { }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", null)],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnparseableProjectAssemblyIdentityIsConservativelyRetainedForCompilationReference(bool useSymbolAnalysis)
+    {
+        var dependency = CreateCompilationReference(
+            "namespace Dep { public class Foo { } }",
+            assemblyName: "LogicalAssembly",
+            declaredFileName: "PhysicalFileName.dll");
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", "LogicalAssembly, Version=invalid")],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnparseableProjectAssemblyIdentityDoesNotSuppressPeBackedDiagnostic(bool useSymbolAnalysis)
+    {
+        var dependency = EmitDependency(
+            "namespace Dep { public class Foo { } }",
+            assemblyName: "LogicalAssembly");
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C { }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", "LogicalAssembly, Version=invalid")],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+    }
+
+    [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public async Task CompilationReferenceDoesNotSuppressPeBackedLegacyDiagnostic(
+        bool useSymbolAnalysis,
+        bool useUnparseableIdentity)
+    {
+        var used = CreateCompilationReference(
+            "namespace Used { public class Foo { } }",
+            assemblyName: "UsedAssembly",
+            declaredFileName: "UsedPhysicalName.dll");
+        var unused = EmitDependency(
+            "namespace Unused { public class Bar { } }",
+            assemblyName: "UnusedAssembly");
+        string? unusedIdentity = useUnparseableIdentity
+            ? "UnusedAssembly, Version=invalid"
+            : null;
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C : Used.Foo { }",
+            [(used.Reference, used.Path, "ProjectReference", "../Used/Used.csproj", used.Identity),
+             (unused.Reference, unused.Path, "ProjectReference", "../Unused/Unused.csproj", unusedIdentity)],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "../Unused/Unused.csproj");
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CompilationReferenceTransitiveChainRetainsDependenciesButNotUnrelatedReferences(bool useSymbolAnalysis)
+    {
+        var a = CreateCompilationReference(
+            "namespace Dep { public class A { } }",
+            assemblyName: "AAssembly",
+            declaredFileName: "APhysical.dll");
+        var b = CreateCompilationReference(
+            "namespace Dep { public class B : A { } }",
+            assemblyName: "BAssembly",
+            declaredFileName: "BPhysical.dll",
+            additionalReferences: [a.Reference]);
+        var unrelated = CreateCompilationReference(
+            "namespace Other { public class C { } }",
+            assemblyName: "CAssembly",
+            declaredFileName: "CPhysical.dll");
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class Consumer : Dep.B { }",
+            [(a.Reference, a.Path, "ProjectReference", "../A/A.csproj", a.Identity),
+             (b.Reference, b.Path, "ProjectReference", "../B/B.csproj", b.Identity),
+             (unrelated.Reference, unrelated.Path, "ProjectReference", "../C/C.csproj", unrelated.Identity)],
+            useSymbolAnalysis: useSymbolAnalysis,
+            disableTransitiveProjectReferences: true);
+
+        Assert.AreEqual(1, diagnostics.Length);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "../C/C.csproj");
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  Test infrastructure
     // ──────────────────────────────────────────────────────────────────────
@@ -1323,6 +1584,35 @@ public sealed class AnalyzerTests
         return (MetadataReference.CreateFromFile(path), path);
     }
 
+    private static (MetadataReference Reference, string Path, string Identity) CreateCompilationReference(
+        string source,
+        string assemblyName,
+        string declaredFileName,
+        string[]? aliases = null,
+        MetadataReference[]? additionalReferences = null)
+    {
+        var references = new List<MetadataReference> { CorlibRef };
+        if (additionalReferences is not null)
+        {
+            references.AddRange(additionalReferences);
+        }
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            [CSharpSyntaxTree.ParseText(source)],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        ImmutableArray<Diagnostic> diagnostics = compilation.GetDiagnostics();
+        Assert.IsFalse(
+            diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error),
+            $"Dependency compilation failed:\n{string.Join("\n", diagnostics)}");
+
+        return (
+            compilation.ToMetadataReference(aliases?.ToImmutableArray() ?? ImmutableArray<string>.Empty),
+            Path.Combine(Path.GetTempPath(), declaredFileName),
+            compilation.Assembly.Identity.GetDisplayName());
+    }
+
     /// <summary>
     /// Run the ReferenceTrimmerAnalyzer on the given library source with symbol-based analysis enabled.
     /// Dependencies are declared as ProjectReference entries in the TSV file.
@@ -1347,13 +1637,36 @@ public sealed class AnalyzerTests
         (MetadataReference Reference, string Path, string Kind, string Spec)[] dependencies,
         CSharpParseOptions? parseOptions = null)
     {
+        return await RunAnalyzerAsync(
+            librarySource,
+            dependencies
+                .Select(dependency => (
+                    dependency.Reference,
+                    dependency.Path,
+                    dependency.Kind,
+                    dependency.Spec,
+                    Identity: (string?)null))
+                .ToArray(),
+            parseOptions);
+    }
+
+    private static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync(
+        string librarySource,
+        (MetadataReference Reference, string Path, string Kind, string Spec, string? Identity)[] dependencies,
+        CSharpParseOptions? parseOptions = null,
+        bool useSymbolAnalysis = true,
+        bool disableTransitiveProjectReferences = false)
+    {
         var tree = CSharpSyntaxTree.ParseText(librarySource, parseOptions);
         var references = new List<MetadataReference> { CorlibRef };
         var tsvLines = new List<string>();
         foreach (var dep in dependencies)
         {
             references.Add(dep.Reference);
-            tsvLines.Add($"{dep.Path}\t{dep.Kind}\t{dep.Spec}");
+            tsvLines.Add(
+                dep.Identity is null
+                    ? $"{dep.Path}\t{dep.Kind}\t{dep.Spec}"
+                    : $"{dep.Path}\t{dep.Kind}\t{dep.Spec}\t{dep.Identity}");
         }
 
         var compilation = CSharpCompilation.Create(
@@ -1369,7 +1682,8 @@ public sealed class AnalyzerTests
 
         var globalOptions = new TestGlobalOptions(new Dictionary<string, string>
         {
-            ["build_property.ReferenceTrimmerUseSymbolAnalysis"] = "true",
+            ["build_property.ReferenceTrimmerUseSymbolAnalysis"] = useSymbolAnalysis.ToString(),
+            ["build_property.DisableTransitiveProjectReferences"] = disableTransitiveProjectReferences.ToString(),
         });
 
         var options = new AnalyzerOptions(additionalTexts, new TestOptionsProvider(globalOptions));

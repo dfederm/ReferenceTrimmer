@@ -125,7 +125,11 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     if (referencePath is not null)
                     {
-                        declaredReferences.Add(new DeclaredReference(referencePath, DeclaredReferenceKind.Reference, referenceSpec));
+                        declaredReferences.Add(new DeclaredReference(
+                            referencePath,
+                            DeclaredReferenceKind.Reference,
+                            referenceSpec,
+                            string.Empty));
                     }
                 }
             }
@@ -157,8 +161,13 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     string projectReferenceAssemblyPath = Path.GetFullPath(projectReference.ItemSpec);
                     string referenceProjectFile = projectReference.GetMetadata("OriginalProjectReferenceItemSpec");
+                    string projectAssemblyIdentity = projectReference.GetMetadata("FusionName");
 
-                    declaredReferences.Add(new DeclaredReference(projectReferenceAssemblyPath, DeclaredReferenceKind.ProjectReference, referenceProjectFile));
+                    declaredReferences.Add(new DeclaredReference(
+                        projectReferenceAssemblyPath,
+                        DeclaredReferenceKind.ProjectReference,
+                        referenceProjectFile,
+                        projectAssemblyIdentity));
                 }
             }
             else
@@ -197,7 +206,11 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
 
                     foreach (string assemblyPath in packageInfo.CompileTimeAssemblies)
                     {
-                        declaredReferences.Add(new DeclaredReference(assemblyPath, DeclaredReferenceKind.PackageReference, packageReference.ItemSpec));
+                        declaredReferences.Add(new DeclaredReference(
+                            assemblyPath,
+                            DeclaredReferenceKind.PackageReference,
+                            packageReference.ItemSpec,
+                            string.Empty));
                     }
                 }
             }
@@ -483,7 +496,7 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
         return false;
     }
 
-    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec, optional ProjectAssemblyIdentity), one reference per line.
     // Keep in sync with ReadDeclaredReferences in ReferenceTrimmerAnalyzer.cs.
     private static void SaveDeclaredReferences(IReadOnlyList<DeclaredReference> declaredReferences, string filePath)
     {
@@ -503,7 +516,14 @@ public sealed class CollectDeclaredReferencesTask : MSBuildTask
             };
             writer.Write(kindString);
             writer.Write(fieldDelimiter);
-            writer.WriteLine(reference.Spec);
+            writer.Write(reference.Spec);
+            if (reference.ProjectAssemblyIdentity.Length != 0)
+            {
+                writer.Write(fieldDelimiter);
+                writer.Write(reference.ProjectAssemblyIdentity);
+            }
+
+            writer.WriteLine();
         }
     }
 

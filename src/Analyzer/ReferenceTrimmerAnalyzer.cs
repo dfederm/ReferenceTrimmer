@@ -148,15 +148,30 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
 
         HashSet<string> usedReferences = new(PathComparer);
+        HashSet<AssemblyIdentity> usedAssemblyIdentities = new();
         foreach (MetadataReference metadataReference in compilation.GetUsedAssemblyReferences())
         {
-            if (metadataReference.Display != null)
+            string? referencePath = GetReferencePath(metadataReference);
+            if (referencePath is not null)
             {
-                usedReferences.Add(metadataReference.Display);
+                usedReferences.Add(referencePath);
+            }
+
+            AssemblyIdentity? identity = GetReferenceAssemblyIdentity(compilation, metadataReference);
+            if (identity is not null)
+            {
+                usedAssemblyIdentities.Add(identity);
             }
         }
 
-        ReportUnusedReferences(context, declaredReferencesFile, sourceText, usedReferences, usedReferences);
+        ReportUnusedReferences(
+            context,
+            declaredReferencesFile,
+            sourceText,
+            usedReferences,
+            usedReferences,
+            usedAssemblyIdentities,
+            usedAssemblyIdentities);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -168,28 +183,35 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         Compilation compilation,
         AdditionalText declaredReferencesFile)
     {
-        // Build mappings from reference assembly identities to their metadata reference display paths.
+        // Build mappings from reference assembly identities to their source symbols and file paths.
         // These are used both for symbol tracking and for the transitive closure computation.
-        var assemblyToPath = new Dictionary<AssemblyIdentity, string>();
-        var pathToAssembly = new Dictionary<string, IAssemblySymbol>(PathComparer);
+        var referencesByIdentity = new Dictionary<AssemblyIdentity, ReferenceInfo>();
         foreach (MetadataReference reference in compilation.References)
         {
-            if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol asm && reference.Display != null)
+            IAssemblySymbol? asm = GetReferenceAssemblySymbol(compilation, reference);
+            if (asm is not null)
             {
-                if (!assemblyToPath.ContainsKey(asm.Identity))
+                if (!referencesByIdentity.TryGetValue(asm.Identity, out ReferenceInfo? referenceInfo))
                 {
-                    assemblyToPath.Add(asm.Identity, reference.Display);
+                    referenceInfo = new ReferenceInfo(asm);
+                    referencesByIdentity.Add(asm.Identity, referenceInfo);
+                }
+                else
+                {
+                    referenceInfo.AddAssembly(asm);
                 }
 
-                if (!pathToAssembly.ContainsKey(reference.Display))
+                string? referencePath = GetReferencePath(reference);
+                if (referencePath is not null)
                 {
-                    pathToAssembly.Add(reference.Display, asm);
+                    referenceInfo.AddPath(referencePath);
                 }
             }
         }
 
-        int totalReferenceCount = assemblyToPath.Count;
+        int totalReferenceCount = referencesByIdentity.Count;
         var usedReferencePaths = new ConcurrentDictionary<string, byte>(PathComparer);
+        var usedAssemblyIdentities = new ConcurrentDictionary<AssemblyIdentity, byte>();
         // Monotonically increasing counter. Once it reaches totalReferenceCount, all
         // callbacks short-circuit. A briefly stale read just means a few extra no-op lookups.
         int trackedCount = 0;
@@ -224,10 +246,23 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 return;
             }
 
-            if (assemblyToPath.TryGetValue(assembly.Identity, out string? path)
-                && usedReferencePaths.TryAdd(path, 0))
+            if (!referencesByIdentity.TryGetValue(assembly.Identity, out ReferenceInfo? referenceInfo)
+                || !usedAssemblyIdentities.TryAdd(assembly.Identity, 0))
             {
-                Interlocked.Increment(ref trackedCount);
+                return;
+            }
+
+            Interlocked.Increment(ref trackedCount);
+            if (referenceInfo.Path is not null)
+            {
+                usedReferencePaths.TryAdd(referenceInfo.Path, 0);
+                if (referenceInfo.AdditionalPaths is not null)
+                {
+                    foreach (string path in referenceInfo.AdditionalPaths)
+                    {
+                        usedReferencePaths.TryAdd(path, 0);
+                    }
+                }
             }
         }
 
@@ -870,26 +905,22 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 // Mark type-forwarding assemblies as used when the destination assembly is used.
                 // E.g. a package may forward types to the runtime; the code uses the type (tracking the
                 // runtime assembly) but the forwarder assembly must also be kept as a reference.
-                foreach (KeyValuePair<string, IAssemblySymbol> kvp in pathToAssembly)
+                foreach (KeyValuePair<AssemblyIdentity, ReferenceInfo> kvp in referencesByIdentity)
                 {
-                    if (usedReferencePaths.ContainsKey(kvp.Key))
+                    if (usedAssemblyIdentities.ContainsKey(kvp.Key))
                     {
                         continue;
                     }
 
-                    foreach (INamedTypeSymbol forwardedType in kvp.Value.GetForwardedTypes())
+                    IAssemblySymbol? forwardingAssembly = GetForwardingAssembly(kvp.Value, usedAssemblyIdentities);
+                    if (forwardingAssembly is not null)
                     {
-                        if (forwardedType.ContainingAssembly != null
-                            && assemblyToPath.TryGetValue(forwardedType.ContainingAssembly.Identity, out string? destPath)
-                            && usedReferencePaths.ContainsKey(destPath))
-                        {
-                            usedReferencePaths.TryAdd(kvp.Key, 0);
-                            break;
-                        }
+                        TrackAssembly(forwardingAssembly);
                     }
                 }
 
                 HashSet<string> usedReferences = new(usedReferencePaths.Keys, PathComparer);
+                HashSet<AssemblyIdentity> usedIdentities = new(usedAssemblyIdentities.Keys);
 
                 // For bare Reference items (RT0001), we always need a conservative "transitively used" set
                 // because bare References control copy-to-output behavior directly and have no transitive
@@ -898,9 +929,17 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 // For ProjectReference items (RT0002), we also need the conservative set when
                 // DisableTransitiveProjectReferences is enabled, since MSBuild won't propagate transitive
                 // project dependencies in that case.
-                HashSet<string> transitivelyUsedReferences = ComputeTransitivelyUsedReferences(assemblyToPath, pathToAssembly, usedReferences);
+                HashSet<AssemblyIdentity> transitivelyUsedIdentities = ComputeTransitivelyUsedAssemblyIdentities(referencesByIdentity, usedIdentities);
+                HashSet<string> transitivelyUsedReferences = GetReferencePaths(referencesByIdentity, transitivelyUsedIdentities, usedReferences);
 
-                ReportUnusedReferences(endContext, declaredReferencesFile, sourceText, usedReferences, transitivelyUsedReferences);
+                ReportUnusedReferences(
+                    endContext,
+                    declaredReferencesFile,
+                    sourceText,
+                    usedReferences,
+                    transitivelyUsedReferences,
+                    usedIdentities,
+                    transitivelyUsedIdentities);
             }
             catch (OperationCanceledException)
             {
@@ -922,7 +961,9 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         AdditionalText declaredReferencesFile,
         SourceText sourceText,
         HashSet<string> usedReferences,
-        HashSet<string> transitivelyUsedReferences)
+        HashSet<string> transitivelyUsedReferences,
+        HashSet<AssemblyIdentity> usedAssemblyIdentities,
+        HashSet<AssemblyIdentity> transitivelyUsedAssemblyIdentities)
     {
         Compilation compilation = context.Compilation;
 
@@ -931,21 +972,61 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 .TryGetValue("build_property.DisableTransitiveProjectReferences", out string? disableTransitive)
             && string.Equals(disableTransitive, "true", StringComparison.OrdinalIgnoreCase);
         HashSet<string> projectReferenceUsedSet = disableTransitiveProjectReferences ? transitivelyUsedReferences : usedReferences;
+        HashSet<AssemblyIdentity> projectReferenceUsedIdentitySet = disableTransitiveProjectReferences ? transitivelyUsedAssemblyIdentities : usedAssemblyIdentities;
+        bool hasCompilationReferences = false;
+        foreach (MetadataReference reference in compilation.References)
+        {
+            if (reference is CompilationReference)
+            {
+                hasCompilationReferences = true;
+                break;
+            }
+        }
+
+        HashSet<string>? portableExecutableReferencePaths = null;
+        if (hasCompilationReferences)
+        {
+            portableExecutableReferencePaths = new HashSet<string>(PathComparer);
+            foreach (MetadataReference reference in compilation.References)
+            {
+                string? referencePath = GetReferencePath(reference);
+                if (referencePath is not null)
+                {
+                    portableExecutableReferencePaths.Add(referencePath);
+                }
+            }
+        }
 
         if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
                 .TryGetValue("build_property.EnableReferenceTrimmerDiagnostics", out string? enableDiagnostics)
             && string.Equals(enableDiagnostics, "true", StringComparison.OrdinalIgnoreCase))
         {
+            HashSet<string> usedReferenceDiagnostics = new(PathComparer);
             HashSet<string> unusedReferences = new(PathComparer);
             foreach (MetadataReference metadataReference in compilation.References)
             {
-                if (metadataReference.Display != null && !usedReferences.Contains(metadataReference.Display))
+                string? referencePath = GetReferencePath(metadataReference);
+                AssemblyIdentity? referenceIdentity = GetReferenceAssemblyIdentity(compilation, metadataReference);
+                string? diagnosticKey = referencePath ?? referenceIdentity?.GetDisplayName();
+                if (diagnosticKey is null)
                 {
-                    unusedReferences.Add(metadataReference.Display);
+                    continue;
+                }
+
+                bool isUsed =
+                    (referencePath is not null && usedReferences.Contains(referencePath))
+                    || (referenceIdentity is not null && usedAssemblyIdentities.Contains(referenceIdentity));
+                if (isUsed)
+                {
+                    usedReferenceDiagnostics.Add(diagnosticKey);
+                }
+                else
+                {
+                    unusedReferences.Add(diagnosticKey);
                 }
             }
 
-            DumpReferencesInfo(usedReferences, unusedReferences, declaredReferencesFile.Path);
+            DumpReferencesInfo(usedReferenceDiagnostics, unusedReferences, declaredReferencesFile.Path);
         }
 
         Dictionary<string, List<string>> packageAssembliesDict = new(PathComparer);
@@ -965,7 +1046,24 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 }
                 case DeclaredReferenceKind.ProjectReference:
                 {
-                    if (!projectReferenceUsedSet.Contains(declaredReference.AssemblyPath))
+                    bool isUsed = projectReferenceUsedSet.Contains(declaredReference.AssemblyPath);
+                    bool hasAssemblyIdentity = false;
+                    if (!isUsed && declaredReference.ProjectAssemblyIdentity.Length != 0)
+                    {
+                        hasAssemblyIdentity = AssemblyIdentity.TryParseDisplayName(
+                            declaredReference.ProjectAssemblyIdentity,
+                            out AssemblyIdentity? projectAssemblyIdentity);
+                        isUsed = hasAssemblyIdentity
+                            && projectReferenceUsedIdentitySet.Contains(projectAssemblyIdentity!);
+                    }
+
+                    bool hasPortableExecutableReferencePath =
+                        portableExecutableReferencePaths?.Contains(declaredReference.AssemblyPath) == true;
+
+                    if (!isUsed
+                        && (hasAssemblyIdentity
+                            || hasPortableExecutableReferencePath
+                            || !hasCompilationReferences))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(RT0002Descriptor, Location.None, declaredReference.Spec));
                     }
@@ -1100,33 +1198,190 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         return null;
     }
 
-    private static HashSet<string> ComputeTransitivelyUsedReferences(
-        Dictionary<AssemblyIdentity, string> identityToPath,
-        Dictionary<string, IAssemblySymbol> pathToAssembly,
-        HashSet<string> usedReferences)
+    private static HashSet<string> GetReferencePaths(
+        Dictionary<AssemblyIdentity, ReferenceInfo> referencesByIdentity,
+        HashSet<AssemblyIdentity> assemblyIdentities,
+        HashSet<string> directlyUsedReferences)
     {
-        HashSet<string> transitivelyUsed = new(usedReferences, PathComparer);
-        Queue<string> queue = new(usedReferences);
+        HashSet<string> paths = new(directlyUsedReferences, PathComparer);
+        foreach (AssemblyIdentity identity in assemblyIdentities)
+        {
+            if (referencesByIdentity.TryGetValue(identity, out ReferenceInfo? referenceInfo)
+                && referenceInfo.Path is not null)
+            {
+                paths.Add(referenceInfo.Path);
+                if (referenceInfo.AdditionalPaths is not null)
+                {
+                    foreach (string path in referenceInfo.AdditionalPaths)
+                    {
+                        paths.Add(path);
+                    }
+                }
+            }
+        }
+
+        return paths;
+    }
+
+    private static HashSet<AssemblyIdentity> ComputeTransitivelyUsedAssemblyIdentities(
+        Dictionary<AssemblyIdentity, ReferenceInfo> referencesByIdentity,
+        HashSet<AssemblyIdentity> usedAssemblyIdentities)
+    {
+        HashSet<AssemblyIdentity> transitivelyUsed = new(usedAssemblyIdentities);
+        Queue<AssemblyIdentity> queue = new(usedAssemblyIdentities);
         while (queue.Count > 0)
         {
-            string path = queue.Dequeue();
-            if (pathToAssembly.TryGetValue(path, out IAssemblySymbol? asm))
+            AssemblyIdentity identity = queue.Dequeue();
+            if (referencesByIdentity.TryGetValue(identity, out ReferenceInfo? referenceInfo))
             {
-                foreach (IModuleSymbol module in asm.Modules)
+                AddReferencedAssemblies(referenceInfo.Assembly, referencesByIdentity, transitivelyUsed, queue);
+                if (referenceInfo.AdditionalAssemblies is not null)
                 {
-                    foreach (AssemblyIdentity dep in module.ReferencedAssemblies)
+                    foreach (IAssemblySymbol assembly in referenceInfo.AdditionalAssemblies)
                     {
-                        if (identityToPath.TryGetValue(dep, out string? depPath)
-                            && transitivelyUsed.Add(depPath))
-                        {
-                            queue.Enqueue(depPath);
-                        }
+                        AddReferencedAssemblies(assembly, referencesByIdentity, transitivelyUsed, queue);
                     }
                 }
             }
         }
 
         return transitivelyUsed;
+    }
+
+    private static void AddReferencedAssemblies(
+        IAssemblySymbol assembly,
+        Dictionary<AssemblyIdentity, ReferenceInfo> referencesByIdentity,
+        HashSet<AssemblyIdentity> transitivelyUsed,
+        Queue<AssemblyIdentity> queue)
+    {
+        foreach (IModuleSymbol module in assembly.Modules)
+        {
+            foreach (AssemblyIdentity dependency in module.ReferencedAssemblies)
+            {
+                if (referencesByIdentity.ContainsKey(dependency)
+                    && transitivelyUsed.Add(dependency))
+                {
+                    queue.Enqueue(dependency);
+                }
+            }
+        }
+    }
+
+    private static IAssemblySymbol? GetForwardingAssembly(
+        ReferenceInfo referenceInfo,
+        ConcurrentDictionary<AssemblyIdentity, byte> usedAssemblyIdentities)
+    {
+        if (ForwardsToUsedAssembly(referenceInfo.Assembly, usedAssemblyIdentities))
+        {
+            return referenceInfo.Assembly;
+        }
+
+        if (referenceInfo.AdditionalAssemblies is not null)
+        {
+            foreach (IAssemblySymbol assembly in referenceInfo.AdditionalAssemblies)
+            {
+                if (ForwardsToUsedAssembly(assembly, usedAssemblyIdentities))
+                {
+                    return assembly;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ForwardsToUsedAssembly(
+        IAssemblySymbol assembly,
+        ConcurrentDictionary<AssemblyIdentity, byte> usedAssemblyIdentities)
+    {
+        foreach (INamedTypeSymbol forwardedType in assembly.GetForwardedTypes())
+        {
+            if (forwardedType.ContainingAssembly is not null
+                && usedAssemblyIdentities.ContainsKey(forwardedType.ContainingAssembly.Identity))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IAssemblySymbol? GetReferenceAssemblySymbol(Compilation compilation, MetadataReference reference)
+        => reference is CompilationReference compilationReference
+            ? compilationReference.Compilation.Assembly
+            : compilation.GetAssemblyOrModuleSymbol(reference) as IAssemblySymbol;
+
+    private static AssemblyIdentity? GetReferenceAssemblyIdentity(Compilation compilation, MetadataReference reference)
+        => GetReferenceAssemblySymbol(compilation, reference)?.Identity;
+
+    private static string? GetReferencePath(MetadataReference reference)
+        => (reference as PortableExecutableReference)?.FilePath;
+
+    private sealed class ReferenceInfo(IAssemblySymbol assembly)
+    {
+        public IAssemblySymbol Assembly { get; } = assembly;
+
+        public List<IAssemblySymbol>? AdditionalAssemblies { get; private set; }
+
+        public string? Path { get; private set; }
+
+        public List<string>? AdditionalPaths { get; private set; }
+
+        public void AddAssembly(IAssemblySymbol assembly)
+        {
+            if (ReferenceEquals(Assembly, assembly))
+            {
+                return;
+            }
+
+            if (AdditionalAssemblies is not null)
+            {
+                foreach (IAssemblySymbol existing in AdditionalAssemblies)
+                {
+                    if (ReferenceEquals(existing, assembly))
+                    {
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                AdditionalAssemblies = new List<IAssemblySymbol>();
+            }
+
+            AdditionalAssemblies.Add(assembly);
+        }
+
+        public void AddPath(string path)
+        {
+            if (Path is null)
+            {
+                Path = path;
+                return;
+            }
+
+            if (PathComparer.Equals(Path, path))
+            {
+                return;
+            }
+
+            if (AdditionalPaths is not null)
+            {
+                foreach (string existing in AdditionalPaths)
+                {
+                    if (PathComparer.Equals(existing, path))
+                    {
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                AdditionalPaths = new List<string>();
+            }
+
+            AdditionalPaths.Add(path);
+        }
     }
 
     private static void DumpReferencesInfo(HashSet<string> usedReferences, HashSet<string> unusedReferences, string declaredReferencesPath)
@@ -1160,7 +1415,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    // File format: tab-separated fields (AssemblyPath, Kind, Spec), one reference per line.
+    // File format: tab-separated fields (AssemblyPath, Kind, Spec, optional ProjectAssemblyIdentity), one reference per line.
     // Keep in sync with SaveDeclaredReferences in CollectDeclaredReferencesTask.cs.
     private static IEnumerable<DeclaredReference> ReadDeclaredReferences(SourceText sourceText)
     {
@@ -1178,6 +1433,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
             int firstTab = -1;
             int secondTab = -1;
+            int thirdTab = -1;
             for (int i = start; i < end; i++)
             {
                 if (sourceText[i] == '\t')
@@ -1186,9 +1442,13 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     {
                         firstTab = i;
                     }
-                    else
+                    else if (secondTab == -1)
                     {
                         secondTab = i;
+                    }
+                    else
+                    {
+                        thirdTab = i;
                         break;
                     }
                 }
@@ -1200,7 +1460,11 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
             }
 
             string assemblyPath = sourceText.ToString(TextSpan.FromBounds(start, firstTab));
-            string spec = sourceText.ToString(TextSpan.FromBounds(secondTab + 1, end));
+            int specEnd = thirdTab == -1 ? end : thirdTab;
+            string spec = sourceText.ToString(TextSpan.FromBounds(secondTab + 1, specEnd));
+            string projectAssemblyIdentity = thirdTab == -1
+                ? string.Empty
+                : sourceText.ToString(TextSpan.FromBounds(thirdTab + 1, end));
 
             // Determine kind without allocating a string. The three possible values are
             // "Reference" (len 9), "ProjectReference" (len 16), "PackageReference" (len 16).
@@ -1223,7 +1487,7 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            yield return new DeclaredReference(assemblyPath, kind, spec);
+            yield return new DeclaredReference(assemblyPath, kind, spec, projectAssemblyIdentity);
         }
     }
 }
