@@ -8,8 +8,29 @@ namespace ReferenceTrimmer.Loggers.MSVC;
 /// </summary>
 public sealed class CentralLogger : Logger
 {
+    private sealed class LocalEventRedirector : IEventRedirector
+    {
+        private readonly Action<CustomBuildEventArgs> _forwardEvent;
+
+        public LocalEventRedirector(Action<CustomBuildEventArgs> forwardEvent)
+        {
+            _forwardEvent = forwardEvent;
+        }
+
+        public void ForwardEvent(BuildEventArgs buildEvent)
+        {
+            if (buildEvent is not CustomBuildEventArgs customBuildEvent)
+            {
+                throw new LoggerException($"Unexpected local forwarding event type: {buildEvent.GetType().FullName}");
+            }
+
+            _forwardEvent(customBuildEvent);
+        }
+    }
+
     private readonly object _jsonLogWriteLock = new();
     private Lazy<StreamWriter>? _lazyJsonLogFileStreamWriter;
+    private ForwardingLogger? _localForwardingLogger;
     private bool _firstEvent = true;
     private string? _jsonLogFilePath;
 
@@ -42,11 +63,21 @@ public sealed class CentralLogger : Logger
         });
 
         eventSource.CustomEventRaised += CustomEventHandler;
+
+        _localForwardingLogger = new ForwardingLogger
+        {
+            BuildEventRedirector = new LocalEventRedirector(e => CustomEventHandler(this, e)),
+            Parameters = Parameters,
+            Verbosity = Verbosity,
+        };
+        _localForwardingLogger.Initialize(eventSource);
     }
 
     /// <inheritdoc />
     public override void Shutdown()
     {
+        _localForwardingLogger?.Shutdown();
+
         lock (_jsonLogWriteLock)
         {
             if (_lazyJsonLogFileStreamWriter is not null && _lazyJsonLogFileStreamWriter.IsValueCreated)
