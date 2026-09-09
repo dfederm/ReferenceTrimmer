@@ -8,7 +8,7 @@ using ReferenceTrimmer.Loggers.MSVC;
 namespace ReferenceTrimmer.Tests;
 
 [TestClass]
-public sealed class E2ETests
+public sealed class E2ETests(TestContext testContext)
 {
     private readonly record struct Warning(string Message, string Project, IEnumerable<string>? AltMessages = null);
 
@@ -19,15 +19,15 @@ public sealed class E2ETests
         @".+: (warning|error) (?<message>.+) \[(?<project>.+)\]",
         RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
-    public TestContext? TestContext { get; set; }
-
     [ClassInitialize]
     public static void ClassInitialize(TestContext _)
     {
         // Delete the package cache to avoid reusing old content
         if (Directory.Exists("Packages"))
         {
+#pragma warning disable MSTEST0077 // Avoid hardcoded or shared filesystem paths in a parallelized test
             Directory.Delete("Packages", recursive: true);
+#pragma warning restore MSTEST0077 // Avoid hardcoded or shared filesystem paths in a parallelized test
         }
     }
 
@@ -821,14 +821,14 @@ public sealed class E2ETests
         bool useSymbolAnalysis = false,
         IReadOnlyDictionary<string, string>? globalProperties = null)
     {
-        var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", TestContext?.TestName ?? string.Empty));
+        var testDataSourcePath = Path.GetFullPath(Path.Combine("TestData", testContext.TestName ?? string.Empty));
 
         string logDirBase = Path.Combine(testDataSourcePath, "Logs");
         string binlogFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".binlog");
         string warningsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".warnings.log");
         string errorsFilePath = Path.Combine(logDirBase, Path.GetFileName(projectFile) + ".errors.log");
 
-        TestContext?.WriteLine($"Log directory: {logDirBase}");
+        testContext.WriteLine($"Log directory: {logDirBase}");
 
         string unusedLibraryLogPath = Path.Combine(testDataSourcePath, ForwardingLogger.HelpKeyword + ".json.log");
         if (File.Exists(unusedLibraryLogPath))
@@ -868,19 +868,19 @@ public sealed class E2ETests
             }.WithVsDevEnvironment());
         Assert.IsNotNull(process);
 
-        string stdOut = await process.StandardOutput.ReadToEndAsync();
-        string stdErr = await process.StandardError.ReadToEndAsync();
+        string stdOut = await process.StandardOutput.ReadToEndAsync(testContext!.CancellationToken);
+        string stdErr = await process.StandardError.ReadToEndAsync(testContext.CancellationToken);
 
-        await process.WaitForExitAsync();
+        await process.WaitForExitAsync(testContext.CancellationToken);
 
         Assert.AreEqual(0, process.ExitCode, $"Build of {projectFile} was not successful.{Environment.NewLine}StandardError: {stdErr}{Environment.NewLine}StandardOutput: {stdOut}");
         Assert.AreEqual(File.Exists(unusedLibraryLogPath), expectUnusedMsvcLibrariesLog);
 
-        string errors = await File.ReadAllTextAsync(errorsFilePath);
+        string errors = await File.ReadAllTextAsync(errorsFilePath, testContext.CancellationToken);
         Assert.AreEqual(0, errors.Length, $"Build of {projectFile} was not successful.{Environment.NewLine}Error log: {errors}");
 
         List<Warning> actualWarnings = new();
-        foreach (string line in await File.ReadAllLinesAsync(warningsFilePath))
+        foreach (string line in await File.ReadAllLinesAsync(warningsFilePath, testContext.CancellationToken))
         {
             Match match = WarningErrorRegex.Match(line);
             if (match.Success)

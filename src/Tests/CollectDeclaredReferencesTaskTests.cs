@@ -30,7 +30,7 @@ public sealed class CollectDeclaredReferencesTaskTests
             bool result = task.Execute();
 
             Assert.IsTrue(result, "Task should succeed when all collection inputs are null. Errors: " + string.Join("; ", engine.Errors));
-            Assert.AreEqual(0, engine.Errors.Count, "No errors should be logged. Errors: " + string.Join("; ", engine.Errors));
+            Assert.IsEmpty(engine.Errors, "No errors should be logged. Errors: " + string.Join("; ", engine.Errors));
         }
         finally
         {
@@ -65,7 +65,7 @@ public sealed class CollectDeclaredReferencesTaskTests
             bool result = task.Execute();
 
             Assert.IsTrue(result, "Task should succeed even when ResolvedReferences is null. Errors: " + string.Join("; ", engine.Errors));
-            Assert.AreEqual(0, engine.Errors.Count, "No errors should be logged. Errors: " + string.Join("; ", engine.Errors));
+            Assert.IsEmpty(engine.Errors, "No errors should be logged. Errors: " + string.Join("; ", engine.Errors));
         }
         finally
         {
@@ -99,7 +99,7 @@ public sealed class CollectDeclaredReferencesTaskTests
             bool result = task.Execute();
 
             Assert.IsTrue(result, "Task should succeed when ProjectAssetsFile is null. Errors: " + string.Join("; ", engine.Errors));
-            Assert.AreEqual(0, engine.Errors.Count, "No errors should be logged. Errors: " + string.Join("; ", engine.Errors));
+            Assert.IsEmpty(engine.Errors, "No errors should be logged. Errors: " + string.Join("; ", engine.Errors));
         }
         finally
         {
@@ -171,7 +171,7 @@ public sealed class CollectDeclaredReferencesTaskTests
             .SingleOrDefault(include => include?.Contains("_ReferenceTrimmerProjectReferences", StringComparison.Ordinal) == true);
 
         Assert.IsNotNull(projectHashInput);
-        StringAssert.Contains(projectHashInput, "%(FusionName)");
+        Assert.Contains("%(FusionName)", projectHashInput);
     }
 
     private sealed class MockBuildEngine : IBuildEngine
