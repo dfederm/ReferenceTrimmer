@@ -226,6 +226,37 @@ public sealed class E2ETests
     }
 
     [TestMethod]
+    public async Task DisableTransitiveProjectReferencesCompileTimeDependency()
+    {
+        // Provider exposes an inapplicable extension-method candidate whose signature references Dependency.
+        // The compiler still needs Dependency's metadata to reject that candidate during overload resolution.
+        // With transitive project references enabled, MSBuild supplies Dependency through Provider, so the
+        // direct Library-to-Dependency reference is removable.
+        await RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: new[]
+            {
+                new Warning("RT0002: ProjectReference ../Dependency/Dependency.csproj can be removed", "Library/Library.csproj"),
+            },
+            useSymbolAnalysis: true,
+            globalProperties: new Dictionary<string, string>
+            {
+                { "DisableTransitiveProjectReferences", "false" },
+            });
+
+        // With transitive project references disabled, Library needs its direct Dependency reference so the
+        // compiler can resolve the rejected candidate's complete signature.
+        await RunMSBuildAsync(
+            projectFile: "Library/Library.csproj",
+            expectedWarnings: [],
+            useSymbolAnalysis: true,
+            globalProperties: new Dictionary<string, string>
+            {
+                { "DisableTransitiveProjectReferences", "true" },
+            });
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task UsedReferenceHintPath(bool useSymbolAnalysis)

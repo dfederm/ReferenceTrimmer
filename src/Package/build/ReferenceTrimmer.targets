@@ -8,6 +8,7 @@
   <ItemGroup>
     <CompilerVisibleProperty Include="EnableReferenceTrimmerDiagnostics"/>
     <CompilerVisibleProperty Include="ReferenceTrimmerUseSymbolAnalysis"/>
+    <CompilerVisibleProperty Include="DisableTransitiveProjectReferences"/>
   </ItemGroup>
 
   <Target Name="_PrepareCollectDeclaredReferences"

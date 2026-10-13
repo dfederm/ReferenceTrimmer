@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Provider/Provider.csproj" />
+    <!-- Required to resolve an extension-method candidate exposed by Provider. -->
+    <ProjectReference Include="../Dependency/Dependency.csproj" />
+  </ItemGroup>
+
+</Project>
