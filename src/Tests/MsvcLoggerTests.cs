@@ -6,7 +6,7 @@ using ReferenceTrimmer.Loggers.MSVC;
 namespace ReferenceTrimmer.Tests;
 
 [TestClass]
-public sealed class MsvcLoggerTests
+public sealed class MsvcLoggerTests(TestContext testContext)
 {
     private sealed class MockEventSource : IEventSource
     {
@@ -372,7 +372,7 @@ public sealed class MsvcLoggerTests
         centralLogger.Shutdown();
 
         Assert.IsTrue(File.Exists(jsonPath));
-        string json = await File.ReadAllTextAsync(jsonPath);
+        string json = await File.ReadAllTextAsync(jsonPath, testContext.CancellationToken);
         Assert.Contains("user32.lib", json);
     }
 
@@ -394,7 +394,7 @@ public sealed class MsvcLoggerTests
         centralLogger.Shutdown();
         Assert.IsTrue(File.Exists(jsonPath));
         Assert.AreEqual($"[{Environment.NewLine}{{ \"aProp\": \"aValue\" }},{Environment.NewLine}{{ \"aProp2\": \"aValue2\" }}{Environment.NewLine}]{Environment.NewLine}",
-            await File.ReadAllTextAsync(jsonPath));
+            await File.ReadAllTextAsync(jsonPath, testContext.CancellationToken));
     }
 
     private static void SendLinkTaskStarted(

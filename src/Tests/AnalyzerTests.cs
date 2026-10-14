@@ -9,7 +9,7 @@ using ReferenceTrimmer.Analyzer;
 namespace ReferenceTrimmer.Tests;
 
 [TestClass]
-public sealed class AnalyzerTests
+public sealed class AnalyzerTests(TestContext testContext)
 {
     [TestMethod]
     public async Task UsedViaMethodCall()
@@ -28,7 +28,7 @@ public sealed class AnalyzerTests
         var diagnostics = await RunAnalyzerAsync(
             "class C { }",
             dep);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
     }
 
@@ -239,9 +239,9 @@ public sealed class AnalyzerTests
             "class C : Used.Foo { }",
             [(used.Reference, used.Path, "ProjectReference", "../Used/Used.csproj"),
              (unused.Reference, unused.Path, "ProjectReference", "../Unused/Unused.csproj")]);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        Assert.IsTrue(diagnostics[0].GetMessage(CultureInfo.InvariantCulture).Contains("Unused"));
+        Assert.Contains("Unused", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -298,7 +298,7 @@ public sealed class AnalyzerTests
             class C { }",
             [(dep.Reference, dep.Path, "ProjectReference", "../Dependency/Dependency.csproj")],
             new CSharpParseOptions(documentationMode: DocumentationMode.None));
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
     }
 
@@ -314,14 +314,14 @@ public sealed class AnalyzerTests
         var facadeTree = CSharpSyntaxTree.ParseText(@"
             using System.Runtime.CompilerServices;
             [assembly: TypeForwardedTo(typeof(Dep.Foo))]
-        ");
+        ", cancellationToken: testContext.CancellationToken);
         var facadeComp = CSharpCompilation.Create(
             "Facade",
             [facadeTree],
             [CorlibRef, runtime.Reference],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         string facadePath = Path.Combine(Path.GetTempPath(), $"RT_Test_Facade_{Guid.NewGuid():N}.dll");
-        var facadeResult = facadeComp.Emit(facadePath);
+        var facadeResult = facadeComp.Emit(facadePath, cancellationToken: testContext.CancellationToken);
         Assert.IsTrue(facadeResult.Success, $"Facade compilation failed:\n{string.Join("\n", facadeResult.Diagnostics)}");
         var facadeRef = MetadataReference.CreateFromFile(facadePath);
 
@@ -445,9 +445,9 @@ public sealed class AnalyzerTests
         var diagnostics = await RunAnalyzerAsync(
             "class C { }",
             [(dep.Reference, dep.Path, "PackageReference", "Dep.Package")]);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0003", diagnostics[0].Id);
-        Assert.IsTrue(diagnostics[0].GetMessage(CultureInfo.InvariantCulture).Contains("Dep.Package"));
+        Assert.Contains("Dep.Package", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -484,7 +484,7 @@ public sealed class AnalyzerTests
         var diagnostics = await RunAnalyzerAsync(
             "class C { }",
             [(dep.Reference, dep.Path, "Reference", dep.Path)]);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0001", diagnostics[0].Id);
     }
 
@@ -544,7 +544,7 @@ public sealed class AnalyzerTests
         var diagnostics = await RunAnalyzerAsync(
             "public class Local {} public delegate Local Produce(Local x);",
             dep);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
     }
 
@@ -693,9 +693,9 @@ public sealed class AnalyzerTests
             [(baseAsm.Reference, baseAsm.Path, "ProjectReference", "../Base/Base.csproj"),
              (derivedAsm.Reference, derivedAsm.Path, "ProjectReference", "../Derived/Derived.csproj"),
              (unrelated.Reference, unrelated.Path, "ProjectReference", "../Unrelated/Unrelated.csproj")]);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Unrelated");
+        Assert.Contains("Unrelated", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -850,9 +850,9 @@ public sealed class AnalyzerTests
             [(aAsm.Reference, aAsm.Path, "ProjectReference", "../A/A.csproj"),
              (bAsm.Reference, bAsm.Path, "ProjectReference", "../B/B.csproj"),
              (unrelated.Reference, unrelated.Path, "ProjectReference", "../Unrelated/Unrelated.csproj")]);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Unrelated");
+        Assert.Contains("Unrelated", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -977,9 +977,9 @@ public sealed class AnalyzerTests
             [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
              (providerDep.Reference, providerDep.Path, "ProjectReference", "../ProviderDependency/ProviderDependency.csproj"),
              (unrelated.Reference, unrelated.Path, "ProjectReference", "../Unrelated/Unrelated.csproj")]);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Unrelated");
+        Assert.Contains("Unrelated", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -1245,9 +1245,9 @@ public sealed class AnalyzerTests
             @"public class Consumer { void M(Provider.P p) { p.Foo(""x""); } }",
             [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
              (dep.Reference, dep.Path, "ProjectReference", "../Dep/Dep.csproj")]);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Dep");
+        Assert.Contains("Dep", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -1272,9 +1272,9 @@ public sealed class AnalyzerTests
             @"public class Consumer { void M(Provider.P p) { p.Foo(""x""); } }",
             [(provider.Reference, provider.Path, "ProjectReference", "../Provider/Provider.csproj"),
              (dep.Reference, dep.Path, "ProjectReference", "../Dep/Dep.csproj")]);
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "Dep");
+        Assert.Contains("Dep", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -1310,7 +1310,7 @@ public sealed class AnalyzerTests
             [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", dependency.Identity)],
             useSymbolAnalysis: useSymbolAnalysis);
 
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
     }
 
@@ -1334,7 +1334,7 @@ public sealed class AnalyzerTests
             [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", differentVersionIdentity)],
             useSymbolAnalysis: useSymbolAnalysis);
 
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
     }
 
@@ -1416,9 +1416,9 @@ public sealed class AnalyzerTests
             useSymbolAnalysis: useSymbolAnalysis,
             disableTransitiveProjectReferences: true);
 
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "../Unrelated/Unrelated.csproj");
+        Assert.Contains("../Unrelated/Unrelated.csproj", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -1471,7 +1471,7 @@ public sealed class AnalyzerTests
             [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", "LogicalAssembly, Version=invalid")],
             useSymbolAnalysis: useSymbolAnalysis);
 
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
     }
 
@@ -1501,9 +1501,9 @@ public sealed class AnalyzerTests
              (unused.Reference, unused.Path, "ProjectReference", "../Unused/Unused.csproj", unusedIdentity)],
             useSymbolAnalysis: useSymbolAnalysis);
 
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "../Unused/Unused.csproj");
+        Assert.Contains("../Unused/Unused.csproj", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     [TestMethod]
@@ -1533,9 +1533,9 @@ public sealed class AnalyzerTests
             useSymbolAnalysis: useSymbolAnalysis,
             disableTransitiveProjectReferences: true);
 
-        Assert.AreEqual(1, diagnostics.Length);
+        Assert.HasCount(1, diagnostics);
         Assert.AreEqual("RT0002", diagnostics[0].Id);
-        StringAssert.Contains(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), "../C/C.csproj");
+        Assert.Contains("../C/C.csproj", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
     }
 
     // ──────────────────────────────────────────────────────────────────────

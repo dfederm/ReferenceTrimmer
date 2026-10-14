@@ -19,6 +19,7 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisMode>Recommended</AnalysisMode>
+    <MSTestAnalysisMode>All</MSTestAnalysisMode>
 
     <!-- See https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0005 -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
