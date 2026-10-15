@@ -60,6 +60,13 @@ jobs:
           path: ./artifacts
         if: ${{ always() }} # Always run this step even on failure
 
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: dfederm
+        if: startsWith(github.ref, 'refs/tags/v')
+
       - name: Push NuGet package
-        run: dotnet nuget push artifacts\*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push artifacts\*.nupkg --source https://api.nuget.org/v3/index.json --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --skip-duplicate
         if: startsWith(github.ref, 'refs/tags/v')
