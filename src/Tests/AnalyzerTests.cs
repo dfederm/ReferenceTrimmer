@@ -1341,6 +1341,51 @@ public sealed class AnalyzerTests(TestContext testContext)
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
+    public async Task UsedCompilationReferenceMatchesNameOnlyAssemblyIdentity(bool useSymbolAnalysis)
+    {
+        // When the referenced project has not been built yet, its FusionName holds only the simple name.
+        var dependency = CreateCompilationReference(
+            "[assembly: System.Reflection.AssemblyVersion(\"1.0.0.0\")] namespace Dep { public class Foo { } }",
+            assemblyName: "LogicalAssembly",
+            declaredFileName: "PhysicalFileName.dll");
+        Assert.Contains("Version=1.0.0.0", dependency.Identity);
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C : Dep.Foo { }",
+            [(dependency.Reference, dependency.Path, "ProjectReference", "../Dependency/Dependency.csproj", "LogicalAssembly")],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        AssertNoDiagnostics(diagnostics);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task UnusedCompilationReferenceWithNameOnlyAssemblyIdentityStillReportsDiagnostic(bool useSymbolAnalysis)
+    {
+        var used = CreateCompilationReference(
+            "[assembly: System.Reflection.AssemblyVersion(\"1.0.0.0\")] namespace Used { public class Foo { } }",
+            assemblyName: "UsedAssembly",
+            declaredFileName: "UsedPhysicalName.dll");
+        var unused = CreateCompilationReference(
+            "[assembly: System.Reflection.AssemblyVersion(\"1.0.0.0\")] namespace Unused { public class Bar { } }",
+            assemblyName: "UnusedAssembly",
+            declaredFileName: "UnusedPhysicalName.dll");
+
+        var diagnostics = await RunAnalyzerAsync(
+            "class C : Used.Foo { }",
+            [(used.Reference, used.Path, "ProjectReference", "../Used/Used.csproj", "UsedAssembly"),
+             (unused.Reference, unused.Path, "ProjectReference", "../Unused/Unused.csproj", "UnusedAssembly")],
+            useSymbolAnalysis: useSymbolAnalysis);
+
+        Assert.HasCount(1, diagnostics);
+        Assert.AreEqual("RT0002", diagnostics[0].Id);
+        Assert.Contains("../Unused/Unused.csproj", diagnostics[0].GetMessage(CultureInfo.InvariantCulture));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     public async Task AliasedCompilationReferenceMatchesAssemblyIdentity(bool useSymbolAnalysis)
     {
         var dependency = CreateCompilationReference(

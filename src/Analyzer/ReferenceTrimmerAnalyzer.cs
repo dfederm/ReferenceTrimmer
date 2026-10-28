@@ -1052,9 +1052,15 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
                     {
                         hasAssemblyIdentity = AssemblyIdentity.TryParseDisplayName(
                             declaredReference.ProjectAssemblyIdentity,
-                            out AssemblyIdentity? projectAssemblyIdentity);
+                            out AssemblyIdentity? projectAssemblyIdentity,
+                            out AssemblyIdentityParts projectAssemblyIdentityParts);
+
+                        // The resolved FusionName holds only the simple name when the referenced project has not been built
+                        // yet, for example in a design-time build, so match on the name alone in that case.
                         isUsed = hasAssemblyIdentity
-                            && projectReferenceUsedIdentitySet.Contains(projectAssemblyIdentity!);
+                            && ((projectAssemblyIdentityParts & AssemblyIdentityParts.Version) != 0
+                                ? projectReferenceUsedIdentitySet.Contains(projectAssemblyIdentity!)
+                                : ContainsAssemblyName(projectReferenceUsedIdentitySet, projectAssemblyIdentity!.Name));
                     }
 
                     bool hasPortableExecutableReferencePath =
@@ -1313,6 +1319,19 @@ public class ReferenceTrimmerAnalyzer : DiagnosticAnalyzer
 
     private static AssemblyIdentity? GetReferenceAssemblyIdentity(Compilation compilation, MetadataReference reference)
         => GetReferenceAssemblySymbol(compilation, reference)?.Identity;
+
+    private static bool ContainsAssemblyName(HashSet<AssemblyIdentity> assemblyIdentities, string assemblyName)
+    {
+        foreach (AssemblyIdentity identity in assemblyIdentities)
+        {
+            if (AssemblyIdentityComparer.SimpleNameComparer.Equals(identity.Name, assemblyName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static string? GetReferencePath(MetadataReference reference)
         => (reference as PortableExecutableReference)?.FilePath;
